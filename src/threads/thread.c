@@ -28,6 +28,10 @@ static struct list ready_list;
    when they are first scheduled and removed when they exit. */
 static struct list all_list;
 
+/* List of all processes currently sleeping. Processes are
+   added to this list when they want to sleep for some time. */
+static struct list sleeping_list;
+
 /* Idle thread. */
 static struct thread *idle_thread;
 
@@ -92,6 +96,7 @@ thread_init (void)
   lock_init (&tid_lock);
   list_init (&ready_list);
   list_init (&all_list);
+  list_init (&sleeping_list);
 
   /* Set up a thread structure for the running thread. */
   initial_thread = running_thread ();
@@ -120,7 +125,7 @@ thread_start (void)
 /* Called by the timer interrupt handler at each timer tick.
    Thus, this function runs in an external interrupt context. */
 void
-thread_tick (void) 
+thread_tick (int64_t current_time) 
 {
   struct thread *t = thread_current ();
 
@@ -133,6 +138,25 @@ thread_tick (void)
 #endif
   else
     kernel_ticks++;
+
+  /* Wake up sleeping threads. Sleeping schedules are ordered, so we can keep
+     removing the head. */
+  bool may_wake_up_threads = !list_empty(&sleeping_list);
+  while(may_wake_up_threads)
+  {
+    struct list_elem * first_elem = list_begin (&sleeping_list);
+    struct thread_sleep_schedule *schedule = 
+                list_entry (first_elem, struct thread_sleep_schedule, sleepelem);
+    if(schedule->wakeup_time < current_time)
+    {
+      list_pop_front(&sleeping_list);
+      thread_unblock(schedule->sleeping_thread);
+
+      may_wake_up_threads = !list_empty(&sleeping_list);
+    }
+    else
+      may_wake_up_threads = false;
+  }
 
   /* Enforce preemption. */
   if (++thread_ticks >= TIME_SLICE)
@@ -313,6 +337,45 @@ thread_yield (void)
   schedule ();
   intr_set_level (old_level);
 }
+
+/* Puts the thread in a blocked state until 
+   the wake-up time arrives. */
+void 
+thread_sleep (int64_t until)
+{
+  /* inserting the new schedule in the sleeping list. 
+     Since newly sleeping threads tend to wake up after the
+     already sleeping ones, traverses the list backwards. */
+  struct list_elem *head = list_head (&sleeping_list);
+  struct list_elem *tail = list_end (&sleeping_list);
+  struct list_elem *e = tail;
+  struct list_elem *insert_position = NULL;
+  while (insert_position == NULL)
+    {
+      e = list_prev(e);
+      if(e == head) 
+        insert_position = head;
+      else
+        {
+          struct thread_sleep_schedule * schedule;
+          schedule = list_entry (e, 
+                  struct thread_sleep_schedule, sleepelem);
+          if(schedule->wakeup_time <= until)
+              insert_position = e;
+        }
+    }
+
+  struct thread_sleep_schedule new_schedule;
+  new_schedule.wakeup_time = until;
+  new_schedule.sleeping_thread = thread_current ();
+
+  list_insert(list_next(insert_position), &new_schedule.sleepelem);
+
+  enum intr_level old_level = intr_disable ();
+  thread_block();
+  intr_set_level(old_level);
+}
+
 
 /* Invoke function 'func' on all threads, passing along 'aux'.
    This function must be called with interrupts off. */

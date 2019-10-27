@@ -102,6 +102,15 @@ struct thread
     unsigned magic;                     /* Detects stack overflow. */
   };
 
+
+/* A pair containing the sleeping thread to wake up and the time.  */
+struct thread_sleep_schedule
+  {
+    struct thread * sleeping_thread;
+    int64_t wakeup_time;
+    struct list_elem sleepelem;           /* List element for sleep thread list. */
+  };
+
 /* If false (default), use round-robin scheduler.
    If true, use multi-level feedback queue scheduler.
    Controlled by kernel command-line option "-o mlfqs". */
@@ -110,7 +119,7 @@ extern bool thread_mlfqs;
 void thread_init (void);
 void thread_start (void);
 
-void thread_tick (void);
+void thread_tick (int64_t current_time);
 void thread_print_stats (void);
 
 typedef void thread_func (void *aux);
@@ -125,6 +134,7 @@ const char *thread_name (void);
 
 void thread_exit (void) NO_RETURN;
 void thread_yield (void);
+void thread_sleep (int64_t until);
 
 /* Performs some operation on thread t, given auxiliary data AUX. */
 typedef void thread_action_func (struct thread *t, void *aux);
