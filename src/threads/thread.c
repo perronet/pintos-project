@@ -343,6 +343,8 @@ thread_yield (void)
 void 
 thread_sleep (int64_t until)
 {
+  enum intr_level old_level = intr_disable ();
+
   /* inserting the new schedule in the sleeping list. 
      Since newly sleeping threads tend to wake up after the
      already sleeping ones, traverses the list backwards. */
@@ -371,8 +373,8 @@ thread_sleep (int64_t until)
 
   list_insert(list_next(insert_position), &new_schedule.sleepelem);
 
-  enum intr_level old_level = intr_disable ();
   thread_block();
+  
   intr_set_level(old_level);
 }
 

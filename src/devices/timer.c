@@ -85,7 +85,8 @@ timer_elapsed (int64_t then)
 }
 
 /* Sleeps for approximately TICKS timer ticks.  Interrupts must
-   be turned on. */
+   be turned on. If ticks is less or equal to zero, nothing will
+   happen. */
 void
 timer_sleep (int64_t ticks) 
 {
