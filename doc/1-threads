@@ -6,10 +6,8 @@
 
 ---- GROUP ----
 
->> Fill in the names, email addresses and matriculation numbers of your group members.
-
-FirstName LastName <email@domain.example> 9999999
-FirstName LastName <email@domain.example> 9999999
+Marco Maida <mmaida@mpi-sws.org> 416157
+Marco Perronet <perronet@mpi-sws.org> 416159
 
 ---- PRELIMINARIES ----
 
@@ -29,26 +27,95 @@ FirstName LastName <email@domain.example> 9999999
 >> `struct' member, global or static variable, `typedef', or
 >> enumeration.  Identify the purpose of each in 25 words or less.
 
+struct thread_sleep_schedule
+  {
+    struct thread * sleeping_thread;
+    int64_t wakeup_time;
+    struct list_elem sleepelem;
+  };
+
+Used to keep track of when a sleeping thread has to wake up.
+
+
+static struct list sleeping_list;
+
+List containing sleeping thread schedules. Checked on each timer tick to
+wake up sleeping threads.
+
 ---- ALGORITHMS ----
 
 >> A2: Briefly describe what happens in a call to timer_sleep(),
 >> including the effects of the timer interrupt handler.
 
+If the sleeping time is valid, thread_sleep() is called.
+This function creates a schedule and puts it in sleeping_list, which
+is ordered basing on wake-up times. The thread is subsequently blocked.
+All of this is performed with disabled interrupts.
+
+On the other hand, the timer interrupt retrieves schedules from the same 
+list and wakes up threads if needed.
+
 >> A3: What steps are taken to minimize the amount of time spent in
 >> the timer interrupt handler?
+
+Since interrupts cannot sleep, we need to disable them when we access 
+the sleeping list to avoid race conditions. However, it is possible to 
+minimize the damage: we can assume that sleep requests will be less 
+than timer ticks, so we can keep the sleeping list ordered. This way, 
+the complexity of insertions - performed on sleep requests - grows, 
+while the complexity of retrievals - performed on each timer tick - 
+is reduced.
+
+Another thing to note is that the elements of sleeping_list 
+(thread_sleep_schedule) live entirely on the stacks of the process.
+This avoids calls to the memory manager and lowers the execution time.
 
 ---- SYNCHRONIZATION ----
 
 >> A4: How are race conditions avoided when multiple threads call
 >> timer_sleep() simultaneously?
+Since we need to disable interrupts to avoid race conditions with the
+timer interrupts, we get this for free.
 
 >> A5: How are race conditions avoided when a timer interrupt occurs
 >> during a call to timer_sleep()?
+Interrupts are disabled when accessing sleeping_list.
 
 ---- RATIONALE ----
 
 >> A6: Why did you choose this design?  In what ways is it superior to
 >> another design you considered?
+
+A lot of this is already explained in [A3]. We think that the main 
+decision to take for this implementation is how to keep track of 
+the sleeping threads. In our case, we decided to use the double linked
+list provided in Pintos, and keep the elements ordered by wake-up time.
+
+Let's consider first why we decided to add the thread_sleep_schedule 
+struct.
+In order to keep track of the sleep time, one tempting solution is to 
+just add two more variables (the wake-up time and the list element 
+linker) inside the thread struct. This works, but doing this we bloat 
+one of the most important structs of Pintos for no reason, since we will
+have no other benefit (except for having a new, dirty way to know if a 
+thread is sleeping). Thinking about it, while a thread is sleeping we know
+for sure that no stack variables will be deallocated; we can therefore 
+allocate on the stack a thread_sleep_schedule struct, then call the sleep
+function and pass that as reference. The struct will be then saved inside 
+sleeping_list. This way, the set of sleeping schedules of threads entirely
+lives on their own stacks. This avoids both the use of dynamic allocation 
+and recycles the unused space of the stacks.
+
+As discussed in [A3], sleeping_list is ordered. This reduces the retrievals
+time, but increases the insertions. Of course, this is a choice: if threads 
+happen to sleep very often but for very short periods of time, this may even 
+be counter-productive. To further increase the performance of the insertions,
+we traverse the sleeping_list backwards, under the assumption that threads
+that are already sleeping will wake-up earlier than the one that is going
+to sleep in that moment. This way, the tick function can just iteratively
+remove the first element of the list until all threads that needed to wake 
+up are unblocked.
+
 
 
     		     PROD/CONS
