@@ -27,6 +27,8 @@ Marco Perronet <perronet@mpi-sws.org> 416159
 >> `struct' member, global or static variable, `typedef', or
 >> enumeration.  Identify the purpose of each in 25 words or less.
 
+* In thread.h :
+
 struct thread_sleep_schedule
   {
     struct thread * sleeping_thread;
@@ -36,6 +38,15 @@ struct thread_sleep_schedule
 
 Used to keep track of when a sleeping thread has to wake up.
 
+struct thread
+  {
+    struct semaphore sleep_sema;	
+  };
+
+Semaphore used to wait on when sleeping and to wakeup the thread 
+when the sleep timer expires.
+
+* In thread.c :
 
 static struct list sleeping_list;
 
@@ -49,7 +60,8 @@ wake up sleeping threads.
 
 If the sleeping time is valid, thread_sleep() is called.
 This function creates a schedule and puts it in sleeping_list, which
-is ordered basing on wake-up times. The thread is subsequently blocked.
+is ordered basing on wake-up times. The thread is subsequently blocked on
+its, thread-specific, semaphore (sleep_sema).
 All of this is performed with disabled interrupts.
 
 On the other hand, the timer interrupt retrieves schedules from the same 
