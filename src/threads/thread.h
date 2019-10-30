@@ -108,7 +108,7 @@ struct thread_sleep_schedule
   {
     struct thread * sleeping_thread;
     int64_t wakeup_time;
-    struct list_elem sleepelem;           /* List element for sleep thread list. */
+    struct list_elem sleepelem;           /* List element for sleeping thread list. */
   };
 
 /* If false (default), use round-robin scheduler.

@@ -92,11 +92,11 @@ timer_sleep (int64_t ticks)
 {
   ASSERT (intr_get_level () == INTR_ON);
   
-  if(ticks > 0)
-  {
-    int64_t sleep_until = timer_ticks () + ticks;
-    thread_sleep(sleep_until);
-  }
+  if (ticks > 0)
+    {
+      int64_t sleep_until = timer_ticks () + ticks;
+      thread_sleep (sleep_until);
+    }
 }
 
 /* Sleeps for approximately MS milliseconds.  Interrupts must be

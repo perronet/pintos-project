@@ -141,22 +141,22 @@ thread_tick (int64_t current_time)
 
   /* Wake up sleeping threads. Sleeping schedules are ordered, so we can keep
      removing the head. */
-  bool may_wake_up_threads = !list_empty(&sleeping_list);
-  while(may_wake_up_threads)
-  {
-    struct list_elem * first_elem = list_begin (&sleeping_list);
-    struct thread_sleep_schedule *schedule = 
-                list_entry (first_elem, struct thread_sleep_schedule, sleepelem);
-    if(schedule->wakeup_time < current_time)
+  bool may_wake_up_threads = !list_empty (&sleeping_list);
+  while (may_wake_up_threads)
     {
-      list_pop_front(&sleeping_list);
-      thread_unblock(schedule->sleeping_thread);
+      struct list_elem * first_elem = list_begin (&sleeping_list);
+      struct thread_sleep_schedule *schedule = 
+                  list_entry (first_elem, struct thread_sleep_schedule, sleepelem);
+      if (schedule->wakeup_time < current_time)
+        {
+          list_pop_front (&sleeping_list);
+          thread_unblock (schedule->sleeping_thread); //TODO use sempahore
 
-      may_wake_up_threads = !list_empty(&sleeping_list);
+          may_wake_up_threads = !list_empty (&sleeping_list);
+        }
+      else
+        may_wake_up_threads = false;
     }
-    else
-      may_wake_up_threads = false;
-  }
 
   /* Enforce preemption. */
   if (++thread_ticks >= TIME_SLICE)
@@ -343,26 +343,26 @@ thread_yield (void)
 void 
 thread_sleep (int64_t until)
 {
+  /* Disable interrupts */
   enum intr_level old_level = intr_disable ();
 
-  /* inserting the new schedule in the sleeping list. 
+  /* Inserting the new schedule in the sleeping list. 
      Since newly sleeping threads tend to wake up after the
      already sleeping ones, traverses the list backwards. */
   struct list_elem *head = list_head (&sleeping_list);
-  struct list_elem *tail = list_end (&sleeping_list);
-  struct list_elem *e = tail;
+  struct list_elem *e = list_end (&sleeping_list);
   struct list_elem *insert_position = NULL;
   while (insert_position == NULL)
     {
-      e = list_prev(e);
-      if(e == head) 
+      e = list_prev (e);
+      if (e == head) 
         insert_position = head;
       else
         {
           struct thread_sleep_schedule * schedule;
           schedule = list_entry (e, 
                   struct thread_sleep_schedule, sleepelem);
-          if(schedule->wakeup_time <= until)
+          if (schedule->wakeup_time <= until)
               insert_position = e;
         }
     }
@@ -371,11 +371,12 @@ thread_sleep (int64_t until)
   new_schedule.wakeup_time = until;
   new_schedule.sleeping_thread = thread_current ();
 
-  list_insert(list_next(insert_position), &new_schedule.sleepelem);
+  list_insert (list_next(insert_position), &new_schedule.sleepelem);
 
-  thread_block();
+  thread_block (); //TODO Use semaphore
   
-  intr_set_level(old_level);
+  /* Enable interrupts */
+  intr_set_level (old_level); 
 }
 
 

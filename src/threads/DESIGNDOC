@@ -98,7 +98,7 @@ just add two more variables (the wake-up time and the list element
 linker) inside the thread struct. This works, but doing this we bloat 
 one of the most important structs of Pintos for no reason, since we will
 have no other benefit (except for having a new, dirty way to know if a 
-thread is sleeping). Thinking about it, while a thread is sleeping we know
+thread is sleeping). While a thread is sleeping we know
 for sure that no stack variables will be deallocated; we can therefore 
 allocate on the stack a thread_sleep_schedule struct, then call the sleep
 function and pass that as reference. The struct will be then saved inside 
