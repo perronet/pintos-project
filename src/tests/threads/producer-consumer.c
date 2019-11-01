@@ -9,8 +9,10 @@
 #include "threads/malloc.h"
 #include "threads/synch.h"
 #include "threads/thread.h"
+#include "devices/timer.h"
+#include "lib/random.h"
 
-#define BUF_SIZE 256
+#define BUF_SIZE 512
 #define STR_SIZE 11
 
 static void producer(void* n);
@@ -18,6 +20,7 @@ static void consumer(void* n);
 static bool is_empty(void);
 static bool is_full(void);
 static void producer_consumer(unsigned int num_producer, unsigned int num_consumer);
+// static void sleep_rand(int ticks);
 
 char *buffer;
 
@@ -33,15 +36,15 @@ struct condition not_full;
 
 void test_producer_consumer(void)
 {
-    // producer_consumer(0, 0);
-    // producer_consumer(1, 0);
-    // producer_consumer(0, 1);
-    // producer_consumer(1, 1);
-    // producer_consumer(2, 1);
-    // producer_consumer(1, 3);
-    // producer_consumer(4, 4);
-    // producer_consumer(7, 2);
-    // producer_consumer(2, 7);
+    producer_consumer(0, 0);
+    producer_consumer(1, 0);
+    producer_consumer(0, 1);
+    producer_consumer(1, 1);
+    producer_consumer(2, 1);
+    producer_consumer(1, 3);
+    producer_consumer(4, 4);
+    producer_consumer(7, 2);
+    producer_consumer(2, 7);
     producer_consumer(6, 6);
     pass();
 }
@@ -51,15 +54,15 @@ static void producer(void* n)
     char str[STR_SIZE] = "Hello world";
     int str_pos = 0;
     printf("I am producer %d\n", (uint32_t)n);
-
     do
     {
+        // sleep_rand(30); // Non-determinism for testing interleaving reads/writes
         lock_acquire(&buffer_mutex);
         while(is_full())
             cond_wait(&not_full, &buffer_mutex);
 
         buffer[write_pos%(BUF_SIZE)] = str[str_pos];
-        printf("Written %c in %d - Producer %d\n", str[str_pos], write_pos%(BUF_SIZE), (uint32_t)n);
+        printf("%c written in pos %d - Producer %d\n", str[str_pos], write_pos%(BUF_SIZE), (uint32_t)n);
         write_pos++;
         str_pos++;
 
@@ -76,6 +79,7 @@ static void consumer(void* n)
     printf("I am consumer %d\n", (uint32_t)n);
     while(n_read < STR_SIZE)
     {
+        // sleep_rand(30); // Non-determinism for testing interleaving reads/writes
         lock_acquire(&buffer_mutex);
         while(is_empty())
             cond_wait(&not_empty, &buffer_mutex);
@@ -119,5 +123,11 @@ static void producer_consumer(unsigned int num_producer, unsigned int num_consum
         thread_create("Producer", PRI_DEFAULT, producer, (void*)i);
     }
 }
+
+// static void
+// sleep_rand(int ticks)
+// {
+//   timer_sleep(random_ulong() % ticks + ticks);
+// }
 
 
