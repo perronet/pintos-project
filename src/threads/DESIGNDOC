@@ -130,19 +130,41 @@ up are unblocked.
 >> B1: How does your solution guarantee that consumers will hold until
 >> there is something to consume in the buffer?
 
+Consumers wait on the not_empty condition variable, which is checked in a loop because
+the implementation in Pintos follows Mesa semantics. The buffer is empty
+when both the producers and the consumers point at the same cell.
+
 >> B2: How does your solution guarantee that producers will hold until
 >> there is some free space in the buffer?
 
+It is symmetric to the case with consumers. The buffer is full when the consumer's
+position is one cell before the producer's, in this case the producers wrapped around
+the buffer.
+
 >> B3: How does your solution preserve a FIFO semantics i.e., the first
 >> character produced will be the first to be consumed?
+
+The buffer is circular, meaning that the producers will always follow the exact same path taken by the consumers. The order in which the characters were written is preserved when reading.
 
 ---- RATIONALE ----
 
 >> B4: Give an intuition for why your program preserves safety.
 
+The buffer is protected by a lock. Because producers and consumers take turns on the
+buffer, this is enough to preserve integrity of the data.
+The way the checks for emptiness/fullness are set, illegal read and writes will never occur.
+
 >> B5: Why did you choose this design? Did you consider other design
 >> alternatives? In what ways is it superior to another design you considered?
 
+Another possible approach for the buffer implementation is to use two lists
+as a pool of empty and full buffers, respectively. In this case: 
+(1) The mutual exclusion occurs for each one of the two lists, possibly with
+two locks, rather than on one data structure shared by both producers and consumers.
+(2) To check wether the buffer is full/empty it's enough to check the number of
+elements in the two lists.
+While having two locks on two lists generates less lock contention, the implementation 
+with a shared array and two pointers is really simple and straightfoward.
 
 			     NARROW BRIDGE
 			     =============

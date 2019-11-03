@@ -59,7 +59,6 @@ static void producer(UNUSED void* n)
             cond_wait(&not_full, &buffer_mutex);
 
         buffer[write_pos%(BUF_SIZE)] = str[str_pos];
-        //printf("%c written in pos %d - Producer %d\n", str[str_pos], write_pos%(BUF_SIZE), id);
         write_pos++;
         str_pos++;
 
