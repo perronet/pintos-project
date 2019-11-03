@@ -31,20 +31,12 @@ Marco Perronet <perronet@mpi-sws.org> 416159
 
 struct thread_sleep_schedule
   {
-    struct thread * sleeping_thread;
+    struct semaphore sleep_sema;
     int64_t wakeup_time;
-    struct list_elem sleepelem;
+    struct list_elem sleepelem;           /* List element for sleeping thread list. */
   };
 
 Used to keep track of when a sleeping thread has to wake up.
-
-struct thread
-  {
-    struct semaphore sleep_sema;	
-  };
-
-Semaphore used to wait on when sleeping and to wakeup the thread 
-when the sleep timer expires.
 
 * In thread.c :
 
@@ -61,7 +53,7 @@ wake up sleeping threads.
 If the sleeping time is valid, thread_sleep() is called.
 This function creates a schedule and puts it in sleeping_list, which
 is ordered basing on wake-up times. The thread is subsequently blocked on
-its, thread-specific, semaphore (sleep_sema).
+its thread-specific semaphore (sleep_sema).
 All of this is performed with disabled interrupts.
 
 On the other hand, the timer interrupt retrieves schedules from the same 
@@ -160,25 +152,64 @@ up are unblocked.
 >> C1: How does your solution guarantee that no more that 3 vehicles
 >> are crossing the bridge in the same direction?
 
+The global variable bridge_count keep tracks of how many vehicles are on 
+the bridge. The access to this variable is regulated via the mutex semaphore
+and it is checked in ArriveBridge().
+
 >> C2: What prevents vehicles from opposite directions from crossing the
 >> bridge simultaneously?
 
+The global variable bridge_direction keep tracks of the direction of the
+vehicles. This variable makes sense when there is at least one car on the
+bridge. The access to this variable is regulated via the mutex semaphore
+and it is checked in ArriveBridge(). 
+
 >> C3: How does your solution grant priority to emergency vehicles over
 >> the queue of vehicles ahead in the same direction?
+
+When ArriveBridge() is executed, each vehicle determines the state of the
+bridge and waiters.
+Every emergency vehicle checks if the bridge is available (not currently
+full or having traffic in the other direction). If it is so, it always 
+proceeds. On the other hand, normal vehicles check whether the bridge is 
+available and also that there are no emergency vehicles waiting. 
+If there is at least one emergency vehicle waiting, normal vehicles always
+halt.
 
 >> C4: How do you guarantee that despite having priority, emergency vehicles
 >> do not start crossing the bridge while there are still vehicles crossing
 >> it in the oposite direction?
 
+As stated in [C3], also emergency vehicle check if the bridge is available
+before proceeding.
+
 >> C5: Explain with examples why your solution does not preserve neither
 >> fairness nor freedom from starvation, other than what has been indicated
 >> for emergency vehicles.
+
+This solution may produce starvation if vehicles keep coming from 
+the same side. When this happens, there can be an infinite flux of vehicle
+crossing the bridge always in one direction. A normal vehicles flux can be 
+stopped by the arrival of an emergency vehicle on the other side, but if there
+is at least one emergency vehicle in the flux, there could be an infinite delay
+for the others.
+This solution is not fair because, in case of empty bridge, waiting vehicles on
+the left will always pass first (of course, still respecting the emergency 
+policy).
 
 ---- RATIONALE ----
 
 >> C6: Why did you choose this design? Did you consider other design
 >> alternatives? In what ways is it superior to another design you considered?
 
+Our design uses one mutex semaphore, one counting semaphore for each vehicle 
+type (left/right, normal/emergency), four counters for waiting vehicles, 
+and two variables for the state of the bridge. 
+We could have solved this problem with less semaphores (having just a mutex 
+and one for the waiting vehicles), but with four semaphores we can wake up 
+exactly the type of vehicle we want, reducing the overhead.
+Note that the four counters correspond to the number of vehicles in the queue
+of each semaphore. We decided to use four variables just for clarity.
 
 			   SURVEY QUESTIONS
 			   ================
@@ -192,12 +223,20 @@ the semester.
 >> In your opinion, was this assignment, or any one of the three problems
 >> in it, too easy or too hard?  Did it take too long or too little time?
 
+They were ok. We spent a 2-3 of hours on each one (considering the
+questionnaire).
+
 >> Did you find that working on a particular part of the assignment gave
 >> you greater insight into some aspect of OS design?
+
+Definitely the first one.
 
 >> Is there some particular fact or hint we should give students in
 >> future semesters to help them solve the problems?  Conversely, did you
 >> find any of our guidance to be misleading?
+
+We had some doubts, but reading the assignment again solved them.
+(This answer makes sense only if we executed the assignment correctly).
 
 >> Do you have any suggestions for the TAs to more effectively assist
 >> students, either for future semesters or the remaining projects?
