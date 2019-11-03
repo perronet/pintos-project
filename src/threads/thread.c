@@ -152,7 +152,7 @@ thread_tick (int64_t current_time)
           list_pop_front (&sleeping_list);
 
           /* Wakeup thread */
-          sema_up(& (schedule->sleeping_thread->sleep_sema));
+          sema_up(& (schedule->sleep_sema));
 
           may_wake_up_threads = !list_empty (&sleeping_list);
         }
@@ -371,12 +371,12 @@ thread_sleep (int64_t until)
 
   struct thread_sleep_schedule new_schedule;
   new_schedule.wakeup_time = until;
-  new_schedule.sleeping_thread = thread_current ();
+  sema_init(&new_schedule.sleep_sema, 0);
 
   list_insert (list_next (insert_position), &new_schedule.sleepelem);
 
   /* Wait for wakeup */
-  sema_down (& (thread_current ()->sleep_sema));
+  sema_down (&new_schedule.sleep_sema);
   
   /* Enable interrupts */
   intr_set_level (old_level); 
@@ -532,8 +532,6 @@ init_thread (struct thread *t, const char *name, int priority)
   t->stack = (uint8_t *) t + PGSIZE;
   t->priority = priority;
   t->magic = THREAD_MAGIC;
-
-  sema_init(& (t->sleep_sema), 0);
 
   old_level = intr_disable ();
   list_push_back (&all_list, &t->allelem);
