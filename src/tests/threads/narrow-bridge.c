@@ -37,8 +37,6 @@ void CrossBridge(unsigned int direc, int prio);
 void ExitBridge(unsigned int direc, int prio);
 
 static void vehicle_thread(void *aux);
-static void update_bridge_waiters_status(bool is_left, bool is_emergency, 
-		bool arriving);
 static void waiter_sema(int vehicle_dir, int prio, unsigned int sem_dir);
 static void log_vehicle(unsigned int direc, int prio, char * msg);
 
@@ -148,7 +146,6 @@ void ArriveBridge(unsigned int direc, int prio)
 	//is safe for the car to cross the bridge in the given direction.
 	log_vehicle(direc, prio, ARRIVE_MSG);
 	
-	bool is_left = direc == LEFT;
 	bool is_emergency = prio == EMERGENCY;
 
 	bool will_cross = false;
@@ -176,14 +173,11 @@ void ArriveBridge(unsigned int direc, int prio)
 		}
 		else
 		{
-			update_bridge_waiters_status(is_left, is_emergency, true);
 			sema_up(&mutex);
 
 			waiter_sema(direc, prio, DOWN);
 
 			sema_down(&mutex);
-			//Optimistically remove yourself from the waiting counts.
-			update_bridge_waiters_status(is_left, is_emergency, false);
 		}
 	}
 }
@@ -233,53 +227,45 @@ void ExitBridge(unsigned int direc, int prio)
 	log_vehicle(direc, prio, EXIT_MSG);
 }
 
-/* Updates the bridge status according to the given information. 
-   Used when a vehicle arrives/crosses the bridge
-*/
-static void 
-update_bridge_waiters_status(bool is_left, bool is_emergency, bool arriving)
-{
-	int difference = arriving ? 1 : -1;
-
-	if(is_left)
-	{	
-		if(is_emergency)
-			waiting_le += difference;
-		else
-			waiting_ln += difference;
-	}
-	else
-	{
-		if(is_emergency)
-			waiting_re += difference;
-		else
-			waiting_rn += difference;
-	}
-}
-
-/* Execute up/down on the corresponding semaphore of the given vehicle type */
+/* Execute up/down on the corresponding semaphore of the given vehicle type 
+   and updates the waiters status */
 static void waiter_sema(int vehicle_dir, int prio, unsigned int sem_dir)
 {
 	ASSERT(vehicle_dir == LEFT || vehicle_dir == RIGHT);
 	ASSERT(prio == EMERGENCY || prio == NORMAL);
 	ASSERT(sem_dir == UP || sem_dir == DOWN);
 
-	bool is_left = vehicle_dir == LEFT;
-	bool is_emergency = prio == EMERGENCY;
+	/* if we put the vehicle to sleep, we will then have one waiting more 
+	   vehicle. Otherwise, we will have one less waiting vehicle */
+	int difference = sem_dir == DOWN ? 1 : -1; 
+
 	struct semaphore * target_sema;
-	if(is_left)
+
+	if(vehicle_dir == LEFT)
 	{	
-		if(is_emergency)
+		if(prio == EMERGENCY)
+		{//LE
+			waiting_le += difference;
 			target_sema = &waiters_le;
+		}
 		else
+		{//LN
+			waiting_ln += difference;
 			target_sema = &waiters_ln;
+		}
 	}
 	else
-	{
-		if(is_emergency)
+	{//vehicle_dir == RIGHT
+		if(prio == EMERGENCY)
+		{//RE
+			waiting_re += difference;
 			target_sema = &waiters_re;
+		}
 		else
+		{//RN
+			waiting_rn += difference;
 			target_sema = &waiters_rn;
+		}
 	}
 
 	/*
@@ -287,6 +273,7 @@ static void waiter_sema(int vehicle_dir, int prio, unsigned int sem_dir)
 								(is_emergency? "E" : "N"), 
 								(sem_dir == UP? "up" : "down"));
 	//*/
+
 	if(sem_dir == UP)
 		sema_up(target_sema);
 	else
