@@ -12,7 +12,7 @@
 #include "devices/timer.h"
 #include "lib/random.h"
 
-#define BUF_SIZE 512
+#define BUF_SIZE 5
 #define STR_SIZE 11
 
 static void producer(void* n);
@@ -20,7 +20,6 @@ static void consumer(void* n);
 static bool is_empty(void);
 static bool is_full(void);
 static void producer_consumer(unsigned int num_producer, unsigned int num_consumer);
-// static void sleep_rand(int ticks);
 
 char *buffer;
 
@@ -49,57 +48,53 @@ void test_producer_consumer(void)
     pass();
 }
 
-static void producer(void* n)
+static void producer(UNUSED void* n)
 {
     char str[STR_SIZE] = "Hello world";
     int str_pos = 0;
-    printf("I am producer %d\n", (uint32_t)n);
     do
-    {
-        // sleep_rand(30); // Non-determinism for testing interleaving reads/writes
+      {
         lock_acquire(&buffer_mutex);
         while(is_full())
             cond_wait(&not_full, &buffer_mutex);
 
         buffer[write_pos%(BUF_SIZE)] = str[str_pos];
-        printf("%c written in pos %d - Producer %d\n", str[str_pos], write_pos%(BUF_SIZE), (uint32_t)n);
+        //printf("%c written in pos %d - Producer %d\n", str[str_pos], write_pos%(BUF_SIZE), id);
         write_pos++;
         str_pos++;
 
         cond_signal(&not_empty, &buffer_mutex);
         lock_release(&buffer_mutex);
-
-    }while(str_pos < STR_SIZE);
+      } while(str_pos < STR_SIZE);
 }
 
-static void consumer(void* n)
+static void consumer(UNUSED void* n)
 {
     int n_read = 0;
 
-    printf("I am consumer %d\n", (uint32_t)n);
     while(n_read < STR_SIZE)
-    {
-        // sleep_rand(30); // Non-determinism for testing interleaving reads/writes
+      {
         lock_acquire(&buffer_mutex);
         while(is_empty())
             cond_wait(&not_empty, &buffer_mutex);
-
-        printf("%c read in pos %d - Consumer %d\n", buffer[read_pos%(BUF_SIZE)], read_pos%(BUF_SIZE ), (uint32_t)n);
+  
+        printf("%c\n", buffer[read_pos%(BUF_SIZE)]);
         read_pos++;
         n_read++;
 
         cond_signal(&not_full, &buffer_mutex);
         lock_release(&buffer_mutex);
-
-    }
+      }
 }
 
-static bool is_full(){
-    return ((write_pos + 1) % BUF_SIZE) == (read_pos % BUF_SIZE);
+static bool is_full()
+{
+    return write_pos - read_pos == BUF_SIZE;
 }
 
-static bool is_empty(){
-    return (write_pos % BUF_SIZE) == (read_pos % BUF_SIZE);
+static bool is_empty()
+{
+    return write_pos == read_pos;
 }
 
 static void producer_consumer(unsigned int num_producer, unsigned int num_consumer)
@@ -115,19 +110,7 @@ static void producer_consumer(unsigned int num_producer, unsigned int num_consum
 
     printf("*** Test with %d producers and %d consumers ***\n", num_producer, num_consumer);
     for (i = 0; i < num_consumer; ++i)
-    {
         thread_create("Consumer", PRI_DEFAULT, consumer, (void*)i);
-    }
     for (i = 0; i < num_producer; ++i)
-    {
         thread_create("Producer", PRI_DEFAULT, producer, (void*)i);
-    }
 }
-
-// static void
-// sleep_rand(int ticks)
-// {
-//   timer_sleep(random_ulong() % ticks + ticks);
-// }
-
-
