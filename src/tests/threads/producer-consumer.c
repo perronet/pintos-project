@@ -48,10 +48,12 @@ void test_producer_consumer(void)
     pass();
 }
 
-static void producer(UNUSED void* n)
+static void producer(void* n)
 {
     char str[STR_SIZE] = "Hello world";
     int str_pos = 0;
+
+    printf("I am producer %d\n", (uint32_t)n);
     do
       {
         lock_acquire(&buffer_mutex);
@@ -67,10 +69,11 @@ static void producer(UNUSED void* n)
       } while(str_pos < STR_SIZE);
 }
 
-static void consumer(UNUSED void* n)
+static void consumer(void* n)
 {
     int n_read = 0;
 
+    printf("I am consumer %d\n", (uint32_t)n);
     while(n_read < STR_SIZE)
       {
         lock_acquire(&buffer_mutex);
