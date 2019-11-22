@@ -28,6 +28,8 @@ syscall_init (void)
 static void
 syscall_handler (struct intr_frame *f UNUSED) 
 {
+  // printf("my stack pointer is now in %p\n", f->esp);
+  // hex_dump (((int)f->esp), f->esp, 1024, true);
   printf ("system call!\n");
   thread_exit ();
 }
