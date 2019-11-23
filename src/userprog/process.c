@@ -107,10 +107,14 @@ start_process (void *file_name_args)
    This function will be implemented in problem 2-2.  For now, it
    does nothing. */
 int
-process_wait (tid_t child_tid UNUSED) 
+process_wait (tid_t child_tid) 
 {
-  // struct thread *cur = thread_current ();
-  // TODO
+  // TODO temporary solution
+  barrier ();
+  for (;;)
+  {
+
+  }
   return -1;
 }
 
@@ -506,6 +510,7 @@ setup_stack (void **esp, char *file_name_args)
   argv[i]=NULL;
   printf("argv[%d] = %p\n", i, argv[i]);
 
+  printf("ALIGNMENT\n");
   /* Word alignment */
   while ((int)*esp % 4 != 0){
     *esp -= sizeof(char);
