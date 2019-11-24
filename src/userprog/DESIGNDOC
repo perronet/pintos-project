@@ -105,7 +105,10 @@ Marco Perronet <perronet@mpi-sws.org> 416159
 >> kernel in the way that you did?
 
 It is lean and simple. It is just required to make some memory checks
-in cascade (NULL check, PHYS_BASE check, valid page check). 
+in cascade (NULL check, PHYS_BASE check, valid page check).
+To check for a range of addresses (i.e. when something potentially 
+bigger than a page is passed to the kernel) it is sufficient to perform
+the previous check multiple times (range / PGSIZE + 1 times).
 
 >> B10: What advantages or disadvantages can you see to your design
 >> for file descriptors?

@@ -649,6 +649,8 @@ allocate_tid (void)
   return tid;
 }
 
+/* Checks whether the given pointer points to a valid address of
+   the given thread */
 bool 
 is_valid_address_of_thread(struct thread *t, const void *ptr)
 {
@@ -657,6 +659,23 @@ is_valid_address_of_thread(struct thread *t, const void *ptr)
   
   return false;
 }
+
+/* Checks whether the given range of addresses are valid for the 
+   given thread. It is sufficient to perform a check with PGSIZE
+   step. */
+bool 
+is_valid_address_range_of_thread(struct thread *t, void *begin, void *end)
+{
+  bool is_valid = true;
+  while(begin < end && is_valid)
+  {
+    is_valid = is_valid_address_of_thread (t, begin);
+    begin += PGSIZE;
+  }
+
+  return is_valid;
+} 
+
 
 
 /* Offset of `stack' member within `struct thread'.
