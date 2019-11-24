@@ -8,8 +8,8 @@
 
 >> Fill in the names, email addresses and matriculation numbers of your group members.
 
-FirstName LastName <email@domain.example> 9999999
-FirstName LastName <email@domain.example> 9999999
+Marco Maida <mmaida@mpi-sws.org> 416157
+Marco Perronet <perronet@mpi-sws.org> 416159
 
 ---- PRELIMINARIES ----
 
@@ -103,6 +103,9 @@ FirstName LastName <email@domain.example> 9999999
 
 >> B9: Why did you choose to implement access to user memory from the
 >> kernel in the way that you did?
+
+It is lean and simple. It is just required to make some memory checks
+in cascade (NULL check, PHYS_BASE check, valid page check). 
 
 >> B10: What advantages or disadvantages can you see to your design
 >> for file descriptors?
