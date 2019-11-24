@@ -4,6 +4,7 @@
 #include "syscall.h"
 #include "threads/interrupt.h"
 #include "threads/thread.h"
+#include "devices/shutdown.h"
 
 //TODO move these to syscall.h
 static void syscall_handler (struct intr_frame *);
@@ -108,16 +109,10 @@ syscall_handler (struct intr_frame *f)
     case SYS_WRITE:
       fd = *(int *)f->esp;
       f->esp += sizeof(int);
-      // printf("---------\n");
-      // hex_dump (((int)f->esp), f->esp, 32, true);
       buffer_cnst = *(void **)f->esp;
       f->esp += sizeof(void *);
-      // printf("---------\n");
-      // hex_dump (((int)f->esp), f->esp, 32, true);
       size = *(unsigned *)f->esp;
       f->esp += sizeof(unsigned);
-      // printf("---------\n");
-      // hex_dump (((int)f->esp), f->esp, 32, true);
 
       write (fd, buffer_cnst, size);
     break;
@@ -170,11 +165,14 @@ syscall_handler (struct intr_frame *f)
 static void halt ()
 {
   printf("HALT\n");
+  shutdown_power_off ();
 }
 
 static void exit (int status)
 {
   printf("EXIT %d\n", status);
+  thread_exit ();
+  // TODO
 }
 
 static pid_t exec (const char *file)
