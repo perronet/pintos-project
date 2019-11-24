@@ -227,6 +227,18 @@ static int read (int fd, void *buffer, unsigned length)
 static int write (int fd, const void *buffer, unsigned length)
 {
   printf("WRITE %d %p %d need to write: %s\n", fd, buffer, length, (char *)buffer);
+  
+  struct thread * current = thread_current ();
+
+  if (!is_valid_address_range_of_thread (current, buffer, buffer + length))
+    exit (-1);
+
+  int result = 0;
+  if (fd == STDIN_FILENO)
+      status = -1;
+  else if (fd == STDOUT_FILENO)
+      putbuf (buffer, size);
+
   return 0;
 }
 

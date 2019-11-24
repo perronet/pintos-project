@@ -149,5 +149,6 @@ int thread_get_recent_cpu (void);
 int thread_get_load_avg (void);
 
 bool is_valid_address_of_thread(struct thread *t, const void *ptr); 
+bool is_valid_address_range_of_thread(struct thread *t, void *begin, void *end); 
 
 #endif /* threads/thread.h */
