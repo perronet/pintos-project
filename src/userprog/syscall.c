@@ -178,6 +178,12 @@ static void exit (int status)
 static pid_t exec (const char *file)
 {
   printf("EXEC %p executing: %s\n", file, file);
+
+  struct thread * current = thread_current ();
+
+  if (!is_valid_address_of_thread (current, file))
+    exit (-1);
+
   return 0;
 }
 
@@ -217,7 +223,7 @@ static int read (int fd, void *buffer, unsigned length)
   return 0;
 }
 
-//watch out: "\n" is lenght 1 but also "a\n" is length 1!!! (this is unfixable, it's in the printf code, deal with it)
+//watch out: "\n" is length 1 but also "a\n" is length 1!!! (this is unfixable, it's in the printf code, deal with it)
 static int write (int fd, const void *buffer, unsigned length)
 {
   printf("WRITE %d %p %d need to write: %s\n", fd, buffer, length, (char *)buffer);
@@ -239,3 +245,4 @@ static void close (int fd)
 {
   printf("CLOSE %d\n", fd);
 }
+

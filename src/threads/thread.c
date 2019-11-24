@@ -13,6 +13,7 @@
 #include "threads/vaddr.h"
 #ifdef USERPROG
 #include "userprog/process.h"
+#include "userprog/pagedir.h"
 #endif
 
 /* Random value for struct thread's `magic' member.
@@ -647,6 +648,16 @@ allocate_tid (void)
 
   return tid;
 }
+
+bool 
+is_valid_address_of_thread(struct thread *t, const void *ptr)
+{
+  if(ptr != NULL && is_user_vaddr (ptr))
+      return (pagedir_get_page (t->pagedir, ptr)) != NULL;
+  
+  return false;
+}
+
 
 /* Offset of `stack' member within `struct thread'.
    Used by switch.S, which can't figure it out on its own. */
