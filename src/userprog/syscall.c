@@ -230,16 +230,17 @@ static int write (int fd, const void *buffer, unsigned length)
   
   struct thread * current = thread_current ();
 
-  if (!is_valid_address_range_of_thread (current, buffer, buffer + length))
+  void *b = (void *)buffer; //avoids warning
+  if (!is_valid_address_range_of_thread (current, b, b + length))
     exit (-1);
 
   int result = 0;
   if (fd == STDIN_FILENO)
-      status = -1;
+      result = -1;
   else if (fd == STDOUT_FILENO)
-      putbuf (buffer, size);
+      putbuf (buffer, length);
 
-  return 0;
+  return result;
 }
 
 static void seek (int fd, unsigned position)
