@@ -672,14 +672,21 @@ is_valid_address_of_thread(struct thread *t, const void *ptr)
 bool 
 is_valid_address_range_of_thread(struct thread *t, void *begin, void *end)
 {
-  bool is_valid = true;
-  while(begin < end && is_valid)
+  // Trivially wrong range checks
+  if(begin == NULL || end == NULL || begin >= end)
+    return false;
+
+  // Check from begin every PGSIZE
+  while(begin < end)
   {
-    is_valid = is_valid_address_of_thread (t, begin);
+    if(!is_valid_address_of_thread (t, begin))
+      return false;
+
     begin += PGSIZE;
   }
-
-  return is_valid;
+  
+  //Check last element
+  return is_valid_address_of_thread (t, end-1);
 } 
 
 struct thread* 

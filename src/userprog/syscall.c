@@ -4,6 +4,7 @@
 #include "syscall.h"
 #include "threads/interrupt.h"
 #include "threads/thread.h"
+#include "filesys/fsaccess.h"
 #include "devices/shutdown.h"
 
 //TODO move these to syscall.h
@@ -22,10 +23,12 @@ static void seek (int fd, unsigned position);
 static unsigned tell (int fd);
 static void close (int fd);
 
+
 void
 syscall_init (void) 
 {
   intr_register_int (0x30, 3, INTR_ON, syscall_handler, "syscall");
+  fsaccess_init();
 }
 
 static void
@@ -172,6 +175,7 @@ static void exit (int status)
 {
   printf("EXIT %d\n", status);
   thread_current ()->exit_status = status;
+  close_all_files_of (thread_current ()->tid);
   thread_exit ();
 }
 
@@ -179,9 +183,7 @@ static pid_t exec (const char *file)
 {
   printf("EXEC %p executing: %s\n", file, file);
 
-  struct thread * current = thread_current ();
-
-  if (!is_valid_address_of_thread (current, file))
+  if (!is_valid_address_of_thread (thread_current (), file))
     exit (-1);
 
   return 0;
@@ -196,65 +198,78 @@ static int wait (pid_t pid)
 static bool create (const char *file, unsigned initial_size)
 {
   printf("CREATE %p %d\n", file, initial_size);
-  return 0;
+
+  if (!is_valid_address_of_thread (thread_current (), file))
+    exit (-1);
+
+  return create_file(file, initial_size);
 }
 
 static bool remove (const char *file)
 {
   printf("REMOVE %p\n", file);
-  return 0;
+
+  if (!is_valid_address_of_thread (thread_current (), file))
+    exit (-1);
+
+  return remove_file(file);
 }
 
 static int open (const char *file)
 {
   printf("OPEN %p\n", file);
-  return 0;
+
+  if (!is_valid_address_of_thread (thread_current (), file))
+    exit (-1);
+
+  return open_file(file);
 }
 
 static int filesize (int fd)
 {
   printf("FILESIZE %d\n", fd);
-  return 0;
+  return filelength_open_file (fd);
 }
 
 static int read (int fd, void *buffer, unsigned length)
 {
   printf("READ %d %p %d\n", fd, buffer, length);
-  return 0;
+  
+  struct thread * current = thread_current ();
+  if (!is_valid_address_range_of_thread (current, buffer, buffer + length))
+      exit(-1);
+
+  return read_open_file(fd, buffer, length);
 }
 
-//watch out: "\n" is length 1 but also "a\n" is length 1!!! (this is unfixable, it's in the printf code, deal with it)
+/* Writes to the given fd. 
+   NOTE: remember, "\n" is length 1 but also "a\n" is length 1
+   */
 static int write (int fd, const void *buffer, unsigned length)
 {
   printf("WRITE %d %p %d need to write: %s\n", fd, buffer, length, (char *)buffer);
   
   struct thread * current = thread_current ();
-
-  if (!is_valid_address_range_of_thread (current, buffer, buffer + length))
-    exit (-1);
-
-  // int result = 0;
-  // if (fd == STDIN_FILENO)
-  //     status = -1;
-  // else if (fd == STDOUT_FILENO)
-  //     putbuf (buffer, size);
-
-  return 0;
+  void *buf = (void *)buffer;
+  if (!is_valid_address_range_of_thread (current, buf, buf + length))
+    exit(-1);
+  return write_open_file (fd, buf, length);
 }
 
 static void seek (int fd, unsigned position)
 {
   printf("SEEK %d %d\n", fd, position);
+  seek_open_file (fd, position);
 }
 
 static unsigned tell (int fd)
 {
   printf("TELL %d\n", fd);
-  return 0;
+  return tell_open_file (fd);
 }
 
 static void close (int fd)
 {
   printf("CLOSE %d\n", fd);
+  close_open_file (fd);
 }
-
