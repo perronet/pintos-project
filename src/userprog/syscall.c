@@ -171,8 +171,8 @@ static void halt ()
 static void exit (int status)
 {
   printf("EXIT %d\n", status);
+  thread_current ()->exit_status = status;
   thread_exit ();
-  // TODO
 }
 
 static pid_t exec (const char *file)
@@ -233,11 +233,11 @@ static int write (int fd, const void *buffer, unsigned length)
   if (!is_valid_address_range_of_thread (current, buffer, buffer + length))
     exit (-1);
 
-  int result = 0;
-  if (fd == STDIN_FILENO)
-      status = -1;
-  else if (fd == STDOUT_FILENO)
-      putbuf (buffer, size);
+  // int result = 0;
+  // if (fd == STDIN_FILENO)
+  //     status = -1;
+  // else if (fd == STDOUT_FILENO)
+  //     putbuf (buffer, size);
 
   return 0;
 }

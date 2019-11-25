@@ -86,6 +86,8 @@ struct thread
     /* Owned by thread.c. */
     tid_t tid;                          /* Thread identifier. */
     enum thread_status status;          /* Thread state. */
+    int exit_status;                    /* Exit status. */
+    bool waited;                        /* True if the process was waited by the father */
     char name[16];                      /* Name (for debugging purposes). */
     uint8_t *stack;                     /* Saved stack pointer. */
     int priority;                       /* Priority. */
@@ -93,6 +95,16 @@ struct thread
 
     /* Shared between thread.c and synch.c. */
     struct list_elem elem;              /* List element. */
+
+    /* List of threads that are waiting for this thread to exit. */
+    struct list children_list;
+    struct list_elem children_elem;
+
+    /* Signal waiting parent when the process exits. */
+    struct semaphore exit_sema;
+    /* Signal the dying child process when its exit_status was read. */
+    /* This is needed to prevent it from deallocating before that happens. */
+    struct semaphore exit_status_read_sema;
 
 #ifdef USERPROG
     /* Owned by userprog/process.c. */
@@ -150,5 +162,7 @@ int thread_get_load_avg (void);
 
 bool is_valid_address_of_thread(struct thread *t, const void *ptr); 
 bool is_valid_address_range_of_thread(struct thread *t, void *begin, void *end); 
+
+struct thread* lookup_tid (tid_t tid);
 
 #endif /* threads/thread.h */

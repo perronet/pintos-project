@@ -33,6 +33,9 @@ tid_t
 process_execute (const char *file_name) 
 {
   char *fn_copy, *save_ptr;
+  struct thread *cur = thread_current ();
+  struct thread *child;
+  enum intr_level old_level;
   tid_t tid;
 
   /* Make a copy of FILE_NAME.
@@ -45,12 +48,18 @@ process_execute (const char *file_name)
   file_name = strtok_r((char*)file_name, " ", &save_ptr );
 
   /* Create a new thread to execute FILE_NAME. */
-  printf("TESTING: process_execute\n");
   tid = thread_create (file_name, PRI_DEFAULT, start_process, fn_copy);
-  if (tid == TID_ERROR){
+  if (tid == TID_ERROR)
+  {
     palloc_free_page (fn_copy); 
-  } else {
-    printf("TESTING: thread created successfully\n");
+  }
+  else
+  {
+    old_level = intr_disable ();
+    child = lookup_tid (tid);
+    intr_set_level (old_level);
+
+    list_push_back (&cur->children_list, &child->children_elem);
   }
   return tid;
 }
@@ -109,13 +118,36 @@ start_process (void *file_name_args)
 int
 process_wait (tid_t child_tid) 
 {
-  // TODO temporary solution
-  barrier ();
-  for (;;)
-  {
+  struct thread *cur = thread_current ();
+  struct thread *child = NULL;
+  struct list_elem *chld_elem;
+  struct list *children_list = &cur->children_list;
+  bool found = false;
+  int exit_status;
 
+  if (!list_empty(children_list)) {
+    for (chld_elem = list_front(children_list); chld_elem != list_end(children_list) && !found; 
+      chld_elem = list_next(chld_elem)) {
+
+      child = list_entry(chld_elem, struct thread, children_elem);
+
+      if (child->tid == child_tid)
+        found = true;
+    }
   }
-  return -1;
+
+  if (child == NULL || child->waited)
+    return -1;
+  child->waited = true;
+
+  sema_down (&child->exit_sema);
+  /* Save the exit status. */
+  exit_status = child->exit_status;
+  printf("Thread %s exiting with exit status %d\n", child->name, exit_status);
+  list_remove (&child->children_elem);
+  sema_up (&child->exit_status_read_sema);
+
+  return exit_status;
 }
 
 /* Free the current process's resources. */
@@ -141,6 +173,12 @@ process_exit (void)
       pagedir_activate (NULL);
       pagedir_destroy (pd);
     }
+
+  sema_up (&cur->exit_sema);
+  /* Wait that the parent process has actually read the exit status */
+  /* This is needed because if this process proceeds, its thread struct */
+  /* Could be deallocated by the scheduler at the next process switch. */
+  sema_down (&cur->exit_status_read_sema);
 }
 
 /* Sets up the CPU for running user code in the current
@@ -265,6 +303,10 @@ load (const char *file_name, void (**eip) (void), void **esp)
     {
       printf ("load: %s: open failed\n", file_name);
       goto done; 
+    }
+  else
+    {
+      file_deny_write(file);
     }
 
   /* Read and verify executable header. */

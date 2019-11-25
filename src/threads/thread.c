@@ -532,7 +532,13 @@ init_thread (struct thread *t, const char *name, int priority)
   strlcpy (t->name, name, sizeof t->name);
   t->stack = (uint8_t *) t + PGSIZE;
   t->priority = priority;
+  t->waited = false;
+  t->exit_status = 0;
   t->magic = THREAD_MAGIC;
+
+  list_init (&t->children_list);
+  sema_init (&t->exit_sema, 0);
+  sema_init (&t->exit_status_read_sema, 0);
 
   old_level = intr_disable ();
   list_push_back (&all_list, &t->allelem);
@@ -675,6 +681,23 @@ is_valid_address_range_of_thread(struct thread *t, void *begin, void *end)
 
   return is_valid;
 } 
+
+struct thread* 
+lookup_tid (tid_t tid)
+{
+  struct list_elem *e;
+
+  ASSERT (intr_get_level () == INTR_OFF);
+
+  for (e = list_begin (&all_list); e != list_end (&all_list);
+       e = list_next (e))
+    {
+      struct thread *t = list_entry (e, struct thread, allelem);
+      if (t->tid == tid)
+        return t;
+    }
+  return 0; 
+}
 
 
 
