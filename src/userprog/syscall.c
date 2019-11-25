@@ -174,17 +174,15 @@ static void halt ()
 static void exit (int status)
 {
   printf("EXIT %d\n", status);
+  close_all_files_of (thread_current ()->tid);
   thread_exit ();
-  // TODO
 }
 
 static pid_t exec (const char *file)
 {
   printf("EXEC %p executing: %s\n", file, file);
 
-  struct thread * current = thread_current ();
-
-  if (!is_valid_address_of_thread (current, file))
+  if (!is_valid_address_of_thread (thread_current (), file))
     exit (-1);
 
   return 0;
@@ -199,31 +197,48 @@ static int wait (pid_t pid)
 static bool create (const char *file, unsigned initial_size)
 {
   printf("CREATE %p %d\n", file, initial_size);
-  return 0;
+
+  if (!is_valid_address_of_thread (thread_current (), file))
+    exit (-1);
+
+  return create_file(file, initial_size);
 }
 
 static bool remove (const char *file)
 {
   printf("REMOVE %p\n", file);
-  return 0;
+
+  if (!is_valid_address_of_thread (thread_current (), file))
+    exit (-1);
+
+  return remove_file(file);
 }
 
 static int open (const char *file)
 {
   printf("OPEN %p\n", file);
-  return 0;
+
+  if (!is_valid_address_of_thread (thread_current (), file))
+    exit (-1);
+
+  return open_file(file);
 }
 
 static int filesize (int fd)
 {
   printf("FILESIZE %d\n", fd);
-  return 0;
+  return filelength_open_file (fd);
 }
 
 static int read (int fd, void *buffer, unsigned length)
 {
   printf("READ %d %p %d\n", fd, buffer, length);
-  return 0;
+  
+  struct thread * current = thread_current ();
+  if (!is_valid_address_range_of_thread (current, buffer, buffer + length))
+      exit(-1);
+
+  return read_open_file(fd, buffer, length);
 }
 
 /* Writes to the given fd. 
@@ -232,13 +247,18 @@ static int read (int fd, void *buffer, unsigned length)
 static int write (int fd, const void *buffer, unsigned length)
 {
   printf("WRITE %d %p %d need to write: %s\n", fd, buffer, length, (char *)buffer);
-  return write_open_file (fd, (void *)buffer, length);
+
+  struct thread * current = thread_current ();
+  void *buf = (void *)buffer;
+  if (!is_valid_address_range_of_thread (current, buf, buf + length))
+    exit(-1);
+  return write_open_file (fd, buf, length);
 }
 
 static void seek (int fd, unsigned position)
 {
   printf("SEEK %d %d\n", fd, position);
-  try_seek_open_file (fd, position);
+  seek_open_file (fd, position);
 }
 
 static unsigned tell (int fd)
@@ -250,5 +270,5 @@ static unsigned tell (int fd)
 static void close (int fd)
 {
   printf("CLOSE %d\n", fd);
-  try_close_open_file (fd);
+  close_open_file (fd);
 }
