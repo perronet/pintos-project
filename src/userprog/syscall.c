@@ -4,6 +4,7 @@
 #include "syscall.h"
 #include "threads/interrupt.h"
 #include "threads/thread.h"
+#include "filesys/fsaccess.h"
 #include "devices/shutdown.h"
 
 //TODO move these to syscall.h
@@ -22,10 +23,12 @@ static void seek (int fd, unsigned position);
 static unsigned tell (int fd);
 static void close (int fd);
 
+
 void
 syscall_init (void) 
 {
   intr_register_int (0x30, 3, INTR_ON, syscall_handler, "syscall");
+  fsaccess_init();
 }
 
 static void
@@ -223,39 +226,29 @@ static int read (int fd, void *buffer, unsigned length)
   return 0;
 }
 
-//watch out: "\n" is length 1 but also "a\n" is length 1!!! (this is unfixable, it's in the printf code, deal with it)
+/* Writes to the given fd. 
+   NOTE: remember, "\n" is length 1 but also "a\n" is length 1
+   */
 static int write (int fd, const void *buffer, unsigned length)
 {
   printf("WRITE %d %p %d need to write: %s\n", fd, buffer, length, (char *)buffer);
-  
-  struct thread * current = thread_current ();
-
-  void *b = (void *)buffer; //avoids warning
-  if (!is_valid_address_range_of_thread (current, b, b + length))
-    exit (-1);
-
-  int result = 0;
-  if (fd == STDIN_FILENO)
-      result = -1;
-  else if (fd == STDOUT_FILENO)
-      putbuf (buffer, length);
-
-  return result;
+  return write_open_file (fd, (void *)buffer, length);
 }
 
 static void seek (int fd, unsigned position)
 {
   printf("SEEK %d %d\n", fd, position);
+  try_seek_open_file (fd, position);
 }
 
 static unsigned tell (int fd)
 {
   printf("TELL %d\n", fd);
-  return 0;
+  return tell_open_file (fd);
 }
 
 static void close (int fd)
 {
   printf("CLOSE %d\n", fd);
+  try_close_open_file (fd);
 }
-

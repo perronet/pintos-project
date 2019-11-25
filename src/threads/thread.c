@@ -671,7 +671,7 @@ is_valid_address_range_of_thread(struct thread *t, void *begin, void *end)
     return false;
 
   // Check from begin every PGSIZE
-  while(begin < end && is_valid)
+  while(begin < end)
   {
     if(!is_valid_address_of_thread (t, begin))
       return false;
