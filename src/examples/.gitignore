@@ -2,6 +2,7 @@ cat
 cmp
 cp
 echo
+playground
 halt
 hex-dump
 ls
