@@ -667,13 +667,13 @@ is_valid_address_of_thread(struct thread *t, const void *ptr)
 }
 
 /* Checks whether the given range of addresses are valid for the 
-   given thread. It is sufficient to perform a check with PGSIZE
-   step. */
+   given thread, boundaries included. It is sufficient to perform 
+   a check with PGSIZE step. */
 bool 
 is_valid_address_range_of_thread(struct thread *t, void *begin, void *end)
 {
   // Trivially wrong range checks
-  if(begin == NULL || end == NULL || begin >= end)
+  if(begin == NULL || end == NULL || begin > end)
     return false;
 
   // Check from begin every PGSIZE
@@ -686,7 +686,7 @@ is_valid_address_range_of_thread(struct thread *t, void *begin, void *end)
   }
   
   //Check last element
-  return is_valid_address_of_thread (t, end-1);
+  return is_valid_address_of_thread (t, end);
 } 
 
 struct thread* 
