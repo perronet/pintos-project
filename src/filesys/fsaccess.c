@@ -49,7 +49,6 @@ remove_file(const char *file)
 struct file_descriptor *
 get_file_descriptor (int fd_num)
 {
-  lock_acquire (&files_lock);
   struct list_elem *e;
   e = list_tail (&open_files);
   while ((e = list_prev (e)) != list_head (&open_files)) 
@@ -57,13 +56,9 @@ get_file_descriptor (int fd_num)
       struct file_descriptor *fd;
       fd = list_entry (e, struct file_descriptor, elem);
       if (fd->fd_num == fd_num)
-        {
-          lock_release (&files_lock);
           return fd;
-        }
     }
 
-  lock_release (&files_lock);
   return NULL;
 }
 
