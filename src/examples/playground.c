@@ -7,11 +7,20 @@ main (int argc, char **argv)
   // Just test syscalls here
   // for (i = 0; i < argc; i++)
   //   printf ("%s ", argv[i]);
-  // printf ("\n");
+  // printf ("test\n");
 
-  exec(0);
-  // exit (EXIT_SUCCESS);
+  //SYSCALLS WITHOUT RETURN
+  // exit(5);
   //halt ();
+
+  //SYSCALLS WITH RETURN
+  // write (1, "test", 4);
+  // close (fd);
+  // exec("echo");
+  create ("newnewfile", 40);
+
+  // int fd = open ("newfile");
+  // printf("The file size is %d\n", filesize (fd));
 
   return EXIT_SUCCESS;
 }

@@ -1,10 +1,12 @@
 make; cd build; pintos --filesys-size=2 -p ../../examples/playground -a playground -- -f -q run 'playground one two three'; cd ..
 
-To test before implementing process_wait()
-make; cd build; pintos --filesys-size=2 -p ../../examples/playground -a playground -- -f run 'playground one two three'; cd ..
-
-Permanent filesystem:
+Permanent filesystem (use this to test filesystem syscalls!):
 IN BUILD DIRECTORY:
 pintos-mkdisk filesys.dsk --filesys-size=2
 OUTSIDE OF BUILD DIRECTORY:
 make; cd build; pintos -p ../../examples/playground -a playground -- -f -q run 'playground one two three'; cd ..
+
+COPY FILE INTO PERMANENT FILESYSTEM (stay in userprog directory):
+cd build; pintos -p ../../examples/echo -a echo -- -q; cd ..
+RECOMPILE EXAMPLES THEN COPY FILE (stay in userprog directory):
+cd ../../examples; make; cd ../userprog/build; "pintos -p ../../examples/echo -a echo -- -q"; cd ..

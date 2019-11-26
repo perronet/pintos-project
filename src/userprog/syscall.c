@@ -38,10 +38,11 @@ syscall_handler (struct intr_frame *f)
   printf("my stack pointer is now in %p\n", f->esp);
   // hex_dump (((int)f->esp), f->esp, 1024, true);
 
-  int syscall_id = *(int *)f->esp;
-  f->esp += sizeof(int);
+  void *esp = f->esp;
+  int syscall_id = *(int *)esp;
+  esp += sizeof(int);
   printf ("system call number %d!\n", syscall_id);
-  hex_dump (((int)f->esp), f->esp, 32, true);
+  hex_dump (((int)esp), esp, 32, true);
 
 
   int fd, status;
@@ -56,86 +57,86 @@ syscall_handler (struct intr_frame *f)
       halt ();
     break;
     case SYS_EXIT:
-      status = *(int *)f->esp;
-      f->esp += sizeof(int);
+      status = *(int *)esp;
+      esp += sizeof(int);
 
       exit (status);
     break;
     case SYS_EXEC:
-      file = *(char **)f->esp;
-      f->esp += sizeof(char *);
+      file = *(char **)esp;
+      esp += sizeof(char *);
 
-      exec (file);
+      f->eax = exec (file);
     break;
     case SYS_WAIT:
-      pid = *(pid_t *)f->esp;
-      f->esp += sizeof(pid_t);
+      pid = *(pid_t *)esp;
+      esp += sizeof(pid_t);
     
-      wait (pid);
+      f->eax = wait (pid);
     break;
     case SYS_CREATE:
-      file = *(char **)f->esp;
-      f->esp += sizeof(char *);
-      initial_size = *(unsigned *)f->esp;
-      f->esp += sizeof(unsigned); 
+      file = *(char **)esp;
+      esp += sizeof(char *);
+      initial_size = *(unsigned *)esp;
+      esp += sizeof(unsigned); 
     
-      create (file, initial_size);
+      f->eax = create (file, initial_size);
     break;
     case SYS_REMOVE:
-      file = *(char **)f->esp;
-      f->esp += sizeof(char *);
+      file = *(char **)esp;
+      esp += sizeof(char *);
 
-      remove (file);
+      f->eax = remove (file);
     break;
     case SYS_OPEN:
-      file = *(char **)f->esp;
-      f->esp += sizeof(char *);
+      file = *(char **)esp;
+      esp += sizeof(char *);
     
-      open (file);
+      f->eax = open (file);
     break;
     case SYS_FILESIZE:
-      fd = *(int *)f->esp;
-      f->esp += sizeof(int); 
+      fd = *(int *)esp;
+      esp += sizeof(int); 
     
-      filesize (fd);
+      f->eax = filesize (fd);
     break;
     case SYS_READ:
-      fd = *(int *)f->esp;
-      f->esp += sizeof(int);
-      buffer = *(void **)f->esp;
-      f->esp += sizeof(void *);
-      size = *(unsigned *)f->esp;
-      f->esp += sizeof(unsigned);   
+      fd = *(int *)esp;
+      esp += sizeof(int);
+      buffer = *(void **)esp;
+      esp += sizeof(void *);
+      size = *(unsigned *)esp;
+      esp += sizeof(unsigned);   
 
-      read (fd, buffer, size); 
+      f->eax = read (fd, buffer, size); 
     break;
     case SYS_WRITE:
-      fd = *(int *)f->esp;
-      f->esp += sizeof(int);
-      buffer_cnst = *(void **)f->esp;
-      f->esp += sizeof(void *);
-      size = *(unsigned *)f->esp;
-      f->esp += sizeof(unsigned);
+      fd = *(int *)esp;
+      esp += sizeof(int);
+      buffer_cnst = *(void **)esp;
+      esp += sizeof(void *);
+      size = *(unsigned *)esp;
+      esp += sizeof(unsigned);
 
-      write (fd, buffer_cnst, size);
+      f->eax = write (fd, buffer_cnst, size);
     break;
     case SYS_SEEK:
-      fd = *(int *)f->esp;
-      f->esp += sizeof(int); 
-      position = *(unsigned *)f->esp;
-      f->esp += sizeof(unsigned); 
+      fd = *(int *)esp;
+      esp += sizeof(int); 
+      position = *(unsigned *)esp;
+      esp += sizeof(unsigned); 
     
       seek (fd, position);
     break;
     case SYS_TELL:
-      fd = *(int *)f->esp;
-      f->esp += sizeof(int); 
+      fd = *(int *)esp;
+      esp += sizeof(int); 
     
-      tell (fd);
+      f->eax = tell (fd);
     break;
     case SYS_CLOSE:
-      fd = *(int *)f->esp;
-      f->esp += sizeof(int); 
+      fd = *(int *)esp;
+      esp += sizeof(int); 
     
       close (fd);
     break;
