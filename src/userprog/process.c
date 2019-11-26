@@ -73,8 +73,6 @@ start_process (void *file_name_args)
   struct intr_frame if_;
   bool success;
 
-  printf("TESTING: start_process\n");
-
   /* Initialize interrupt frame and load executable. */
   memset (&if_, 0, sizeof if_);
   if_.gs = if_.fs = if_.es = if_.ds = if_.ss = SEL_UDSEG;
@@ -85,16 +83,7 @@ start_process (void *file_name_args)
   /* If load failed, quit. */
   palloc_free_page (file_name);
   if (!success)
-    {
-      printf("TESTING: Load failed\n");
-      thread_exit ();
-    }
-  else
-    {
-      printf("TESTING: Load successful\n");
-      /* Load arguments on stack */
-
-    }
+    thread_exit ();
 
   /* Start the user process by simulating a return from an
      interrupt, implemented by intr_exit (in
@@ -143,7 +132,7 @@ process_wait (tid_t child_tid)
   sema_down (&child->exit_sema);
   /* Save the exit status. */
   exit_status = child->exit_status;
-  printf("Thread %s exiting with exit status %d\n", child->name, exit_status);
+  printf ("Thread %s exiting with exit status %d\n", child->name, exit_status);
   list_remove (&child->children_elem);
   sema_up (&child->exit_status_read_sema);
 
@@ -295,7 +284,6 @@ load (const char *file_name, void (**eip) (void), void **esp)
   strlcpy (file_name_args, file_name, strlen(file_name)+1);
 
   file_name = strtok_r((char*)file_name, " ", &save_ptr );
-  printf("FILE NAME %s\n", file_name);
 
   /* Open executable file. */
   file = filesys_open (file_name);
@@ -525,7 +513,6 @@ setup_stack (void **esp, char *file_name_args)
   char *save_ptr, *token, *file_name_args_cpy;
   int argc = 0, i = 0;
 
-  printf("ARGS TO LOAD: %s\n", file_name_args);
   file_name_args_cpy = palloc_get_page(0); // TODO palloc_free_page(file_name_args_cpy)
   strlcpy (file_name_args_cpy, file_name_args, strlen (file_name_args)+1);
 
@@ -534,7 +521,6 @@ setup_stack (void **esp, char *file_name_args)
       argc++;
     }
 
-  printf("ARGC IS %d\n", argc);
   char **argv = malloc((argc+1)*sizeof(char*));
 
   /* Load arguments*/
@@ -542,17 +528,13 @@ setup_stack (void **esp, char *file_name_args)
     token = strtok_r (NULL, " ", &save_ptr))
     {
       *esp -= strlen(token) + 1;
-      printf("LOADING ARGUMENT %s at %p\n", token, *esp);
       memcpy (*esp, token, strlen(token) + 1);
 
       argv[i]=(char*)*esp;
-      printf("argv[%d] = %p\n", i, argv[i]);
       i++;
     }
   argv[i]=NULL;
-  printf("argv[%d] = %p\n", i, argv[i]);
 
-  printf("ALIGNMENT\n");
   /* Word alignment */
   while ((int)*esp % 4 != 0){
     *esp -= sizeof(char);
@@ -564,14 +546,12 @@ setup_stack (void **esp, char *file_name_args)
   /* argv pointers (must load in reversed order) */
   for (int j = argc; j >= 0; j--){
     *esp -= sizeof(char*);
-    printf("LOADING ARGV %p at %p\n", argv[j], *esp);
     memcpy (*esp, &argv[j], sizeof(char*)); 
   }
 
   /* Load pointer to argv */
   void *esp_before = *esp;
   *esp -= sizeof(char**);
-  printf("LOADING ARGV POINTER %p at %p\n", argv, esp_before);
   memcpy (*esp, &esp_before, sizeof(char**)); 
 
   /* Load argc */

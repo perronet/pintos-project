@@ -34,16 +34,9 @@ syscall_init (void)
 static void
 syscall_handler (struct intr_frame *f) 
 {
-  printf("TESTING: Stack status in syscall_handler\n");
-  printf("my stack pointer is now in %p\n", f->esp);
-  // hex_dump (((int)f->esp), f->esp, 1024, true);
-
   void *esp = f->esp;
   int syscall_id = *(int *)esp;
   esp += sizeof(int);
-  printf ("system call number %d!\n", syscall_id);
-  hex_dump (((int)esp), esp, 32, true);
-
 
   int fd, status;
   pid_t pid;
