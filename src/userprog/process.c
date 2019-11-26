@@ -562,8 +562,6 @@ setup_stack (void **esp, char *file_name_args)
   uint32_t ret = 0;
   memcpy (*esp, &ret, sizeof(uint32_t)); 
 
-  hex_dump ((int)*esp, *esp, 64, true);
-
   free(argv);
 
   return success;

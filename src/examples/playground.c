@@ -17,9 +17,9 @@ main (int argc, char **argv)
   // write (1, "test", 4);
   // close (fd);
   // exec("echo");
-  create ("newnewfile", 40);
+  create ("testfile", 40);
 
-  // int fd = open ("newfile");
+  // int fd = open ("newnewfile");
   // printf("The file size is %d\n", filesize (fd));
 
   return EXIT_SUCCESS;
