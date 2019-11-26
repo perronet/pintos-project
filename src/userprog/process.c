@@ -132,7 +132,7 @@ process_wait (tid_t child_tid)
   sema_down (&child->exit_sema);
   /* Save the exit status. */
   exit_status = child->exit_status;
-  printf ("Thread %s exiting with exit status %d\n", child->name, exit_status);
+  printf ("%s: exit(%d)\n", child->name, exit_status);
   list_remove (&child->children_elem);
   sema_up (&child->exit_status_read_sema);
 
