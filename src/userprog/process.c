@@ -35,7 +35,6 @@ process_execute (const char *file_name)
   char *fn_copy, *save_ptr;
   struct thread *cur = thread_current ();
   struct thread *child;
-  enum intr_level old_level;
   tid_t tid;
 
   /* Make a copy of FILE_NAME.
@@ -55,9 +54,7 @@ process_execute (const char *file_name)
   }
   else
   {
-    old_level = intr_disable ();
     child = lookup_tid (tid);
-    intr_set_level (old_level);
 
     list_push_back (&cur->children_list, &child->children_elem);
   }
@@ -72,6 +69,7 @@ start_process (void *file_name_args)
   char *file_name = file_name_args;
   struct intr_frame if_;
   bool success;
+  struct thread* parent_thread;
 
   /* Initialize interrupt frame and load executable. */
   memset (&if_, 0, sizeof if_);
@@ -80,10 +78,19 @@ start_process (void *file_name_args)
   if_.eflags = FLAG_IF | FLAG_MBS;
   success = load (file_name_args, &if_.eip, &if_.esp);
 
+  parent_thread = lookup_tid (thread_current ()->parent_tid);
+  if (parent_thread != NULL)
+  {
+    parent_thread->child_born_status = (success ? 1 : -1); 
+    sema_up(&parent_thread->child_sema);
+  }
+
   /* If load failed, quit. */
   palloc_free_page (file_name);
-  if (!success)
+
+  if (!success){
     thread_exit ();
+  }
 
   /* Start the user process by simulating a return from an
      interrupt, implemented by intr_exit (in

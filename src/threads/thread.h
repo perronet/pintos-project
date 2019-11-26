@@ -85,8 +85,10 @@ struct thread
   {
     /* Owned by thread.c. */
     tid_t tid;                          /* Thread identifier. */
+    tid_t parent_tid;                   /* Parent thread identifier. */
     enum thread_status status;          /* Thread state. */
     int exit_status;                    /* Exit status. */
+    int child_born_status;              /* Child status. */                     
     bool waited;                        /* True if the process was waited by the father */
     char name[16];                      /* Name (for debugging purposes). */
     uint8_t *stack;                     /* Saved stack pointer. */
@@ -105,6 +107,8 @@ struct thread
     /* Signal the dying child process when its exit_status was read. */
     /* This is needed to prevent it from deallocating before that happens. */
     struct semaphore exit_status_read_sema;
+    /* Synchronize the father with the child during exec syscall. */
+    struct semaphore child_sema;
 
 #ifdef USERPROG
     /* Owned by userprog/process.c. */

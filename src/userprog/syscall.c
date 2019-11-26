@@ -216,11 +216,18 @@ static void exit (int status)
 static pid_t exec (const char *file)
 {
   // printf("EXEC %p executing: %s\n", file, file);
-
   if (!is_valid_address_of_thread (thread_current (), file))
     exit (-1);
-  
-  return process_execute (file);
+
+  struct thread *cur = thread_current ();
+  cur->child_born_status = 0;
+  tid_t tid = process_execute (file);
+
+  sema_down (&cur->child_sema);
+  if (cur->child_born_status == -1)
+    return -1;
+  else
+    return tid;
 }
 
 static int wait (pid_t pid)

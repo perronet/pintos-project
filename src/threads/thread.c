@@ -209,6 +209,7 @@ thread_create (const char *name, int priority,
   /* Initialize thread. */
   init_thread (t, name, priority);
   tid = t->tid = allocate_tid ();
+  t->parent_tid = thread_current ()->tid;
 
   /* Stack frame for kernel_thread(). */
   kf = alloc_frame (t, sizeof *kf);
@@ -533,12 +534,16 @@ init_thread (struct thread *t, const char *name, int priority)
   t->stack = (uint8_t *) t + PGSIZE;
   t->priority = priority;
   t->waited = false;
+  t->parent_tid = 0;
+  t->child_born_status = 0;
   t->exit_status = 0;
   t->magic = THREAD_MAGIC;
 
+  /* Per-thread initialization */
   list_init (&t->children_list);
   sema_init (&t->exit_sema, 0);
   sema_init (&t->exit_status_read_sema, 0);
+  sema_init (&t->child_sema, 0);
 
   old_level = intr_disable ();
   list_push_back (&all_list, &t->allelem);
@@ -693,9 +698,10 @@ struct thread*
 lookup_tid (tid_t tid)
 {
   struct list_elem *e;
+  enum intr_level old_level;
 
+  old_level = intr_disable ();
   ASSERT (intr_get_level () == INTR_OFF);
-
   for (e = list_begin (&all_list); e != list_end (&all_list);
        e = list_next (e))
     {
@@ -703,6 +709,8 @@ lookup_tid (tid_t tid)
       if (t->tid == tid)
         return t;
     }
+  intr_set_level (old_level);
+  
   return 0; 
 }
 
