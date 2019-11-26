@@ -35,6 +35,9 @@ syscall_init (void)
 static void
 syscall_handler (struct intr_frame *f) 
 {
+  if (!is_valid_address_of_thread (thread_current (), f->esp))
+    exit (-1);
+  
   void *esp = f->esp;
   int syscall_id = *(int *)esp;
   esp += sizeof(int);
@@ -51,84 +54,120 @@ syscall_handler (struct intr_frame *f)
       halt ();
     break;
     case SYS_EXIT:
+      if (!is_valid_address_of_thread (thread_current (), esp))
+        exit (-1);
       status = *(int *)esp;
       esp += sizeof(int);
 
       exit (status);
     break;
     case SYS_EXEC:
+      if (!is_valid_address_of_thread (thread_current (), esp))
+        exit (-1);
       file = *(char **)esp;
       esp += sizeof(char *);
 
       f->eax = exec (file);
     break;
     case SYS_WAIT:
+      if (!is_valid_address_of_thread (thread_current (), esp))
+        exit (-1);
       pid = *(pid_t *)esp;
       esp += sizeof(pid_t);
     
       f->eax = wait (pid);
     break;
     case SYS_CREATE:
+      if (!is_valid_address_of_thread (thread_current (), esp))
+        exit (-1);
       file = *(char **)esp;
       esp += sizeof(char *);
+      if (!is_valid_address_of_thread (thread_current (), esp))
+        exit (-1);
       initial_size = *(unsigned *)esp;
       esp += sizeof(unsigned); 
     
       f->eax = create (file, initial_size);
     break;
     case SYS_REMOVE:
+      if (!is_valid_address_of_thread (thread_current (), esp))
+        exit (-1);
       file = *(char **)esp;
       esp += sizeof(char *);
 
       f->eax = remove (file);
     break;
     case SYS_OPEN:
+      if (!is_valid_address_of_thread (thread_current (), esp))
+        exit (-1);
       file = *(char **)esp;
       esp += sizeof(char *);
     
       f->eax = open (file);
     break;
     case SYS_FILESIZE:
+      if (!is_valid_address_of_thread (thread_current (), esp))
+        exit (-1);
       fd = *(int *)esp;
       esp += sizeof(int); 
     
       f->eax = filesize (fd);
     break;
     case SYS_READ:
+      if (!is_valid_address_of_thread (thread_current (), esp))
+        exit (-1);
       fd = *(int *)esp;
       esp += sizeof(int);
+      if (!is_valid_address_of_thread (thread_current (), esp))
+        exit (-1);
       buffer = *(void **)esp;
       esp += sizeof(void *);
+      if (!is_valid_address_of_thread (thread_current (), esp))
+        exit (-1);
       size = *(unsigned *)esp;
       esp += sizeof(unsigned);   
 
       f->eax = read (fd, buffer, size); 
     break;
     case SYS_WRITE:
+      if (!is_valid_address_of_thread (thread_current (), esp))
+        exit (-1);
       fd = *(int *)esp;
       esp += sizeof(int);
+      if (!is_valid_address_of_thread (thread_current (), esp))
+        exit (-1);
       buffer_cnst = *(void **)esp;
       esp += sizeof(void *);
+      if (!is_valid_address_of_thread (thread_current (), esp))
+        exit (-1);
       size = *(unsigned *)esp;
       esp += sizeof(unsigned);
 
       f->eax = write (fd, buffer_cnst, size);
     break;
     case SYS_SEEK:
+      if (!is_valid_address_of_thread (thread_current (), esp))
+        exit (-1);
       fd = *(int *)esp;
-      esp += sizeof(int); 
+      esp += sizeof(int);
+      if (!is_valid_address_of_thread (thread_current (), esp))
+        exit (-1); 
       position = *(unsigned *)esp;
       esp += sizeof(unsigned); 
     
       seek (fd, position);
     break;
     case SYS_TELL:
+      if (!is_valid_address_of_thread (thread_current (), esp))
+        exit (-1);
       fd = *(int *)esp;
       esp += sizeof(int); 
     
       f->eax = tell (fd);
     break;
     case SYS_CLOSE:
+      if (!is_valid_address_of_thread (thread_current (), esp))
+        exit (-1);
       fd = *(int *)esp;
       esp += sizeof(int); 
     

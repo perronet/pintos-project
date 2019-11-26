@@ -10,3 +10,6 @@ COPY FILE INTO PERMANENT FILESYSTEM (stay in userprog directory):
 cd build; pintos -p ../../examples/echo -a echo -- -q; cd ..
 RECOMPILE EXAMPLES THEN COPY FILE (stay in userprog directory):
 cd ../../examples; make; cd ../userprog/build; "pintos -p ../../examples/echo -a echo -- -q"; cd ..
+
+STRING TO RECOMPILE RUN SINGLE TEST (in build directory)
+cd ..; make; cd build; make tests/userprog/sc-bad-arg.result

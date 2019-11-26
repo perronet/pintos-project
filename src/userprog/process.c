@@ -20,7 +20,7 @@
 #include "threads/vaddr.h"
 #include "devices/timer.h"
 
-#define ARG_MAX 20
+#define ARG_MAX 100
 
 static thread_func start_process NO_RETURN;
 static bool load (const char *cmdline, void (**eip) (void), void **esp);
