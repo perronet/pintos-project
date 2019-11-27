@@ -175,6 +175,9 @@ process_exit (void)
   /* This is needed because if this process proceeds, its thread struct */
   /* Could be deallocated by the scheduler at the next process switch. */
   sema_down (&cur->exit_status_read_sema);
+
+  if(cur->run_file != NULL)
+    file_close(cur->run_file); //automatically allows writes again.
 }
 
 /* Sets up the CPU for running user code in the current
@@ -297,10 +300,12 @@ load (const char *file_name, void (**eip) (void), void **esp)
   if (file == NULL) 
     {
       printf ("load: %s: open failed\n", file_name);
+      file_close (file);
       goto done; 
     }
   else
     {
+      t->run_file = file;
       file_deny_write(file);
     }
 
@@ -387,7 +392,6 @@ load (const char *file_name, void (**eip) (void), void **esp)
 
  done:
   /* We arrive here whether the load is successful or not. */
-  file_close (file);
   return success;
 }
 

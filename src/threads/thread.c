@@ -537,6 +537,7 @@ init_thread (struct thread *t, const char *name, int priority)
   t->parent_tid = 0;
   t->child_born_status = 0;
   t->exit_status = 0;
+  t->run_file = NULL;
   t->magic = THREAD_MAGIC;
 
   /* Per-thread initialization */

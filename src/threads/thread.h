@@ -89,12 +89,12 @@ struct thread
     enum thread_status status;          /* Thread state. */
     int exit_status;                    /* Exit status. */
     int child_born_status;              /* Child status. */                     
-    bool waited;                        /* True if the process was waited by the father */
+    bool waited;                        /* Process was waited by the father */
     char name[16];                      /* Name (for debugging purposes). */
     uint8_t *stack;                     /* Saved stack pointer. */
     int priority;                       /* Priority. */
     struct list_elem allelem;           /* List element for all threads list. */
-
+    struct file * run_file;             /* The file of the source code */
     /* Shared between thread.c and synch.c. */
     struct list_elem elem;              /* List element. */
 
