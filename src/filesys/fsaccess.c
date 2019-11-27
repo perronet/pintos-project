@@ -65,14 +65,18 @@ get_file_descriptor (int fd_num)
 int
 open_file(const char *filename)
 {
+  struct file_descriptor *fd = malloc(sizeof(struct file_descriptor));  
   struct file * f = filesys_open (filename);
 
   if(f == NULL)
+  {
+    if(fd != NULL)
+      free(fd);
+
     return -1;
+  }
   else
   {
-    struct file_descriptor *fd = malloc(sizeof(struct file_descriptor));  
-
     lock_acquire (&files_lock);
     fd->fd_num = fd_count;
     fd->open_file = f;

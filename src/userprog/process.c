@@ -44,7 +44,11 @@ process_execute (const char *file_name)
 
   file_name_copy = malloc(sizeof (char)*(strlen (file_name)+1));
   if (file_name_copy == NULL)
-    return TID_ERROR;
+   {
+      palloc_free_page (name_args); 
+      return TID_ERROR;
+   } 
+
   strlcpy (file_name_copy, file_name, strlen (file_name)+1);
 
   /* All arguments. */
@@ -512,6 +516,9 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
 static bool
 setup_stack (void **esp, char *file_name_args) 
 {
+  if(esp == NULL || file_name_args == NULL)
+    return false;
+
   uint8_t *kpage;
   bool success = false;
 
@@ -521,14 +528,23 @@ setup_stack (void **esp, char *file_name_args)
       success = install_page (((uint8_t *) PHYS_BASE) - PGSIZE, kpage, true);
       if (success)
         *esp = PHYS_BASE;
-      else
+      else 
+      { 
         palloc_free_page (kpage);
+        return false;
     }
+  }
+  else
+    return false;
 
   char *save_ptr, *token, *file_name_args_cpy;
   int argc = 0, i = 0;
 
-  file_name_args_cpy = malloc((strlen (file_name_args)+1)*sizeof (char)); 
+  file_name_args_cpy = malloc((strlen (file_name_args)+1)*sizeof (char));
+
+  if(file_name_args_cpy == NULL)
+    return false;
+
   strlcpy (file_name_args_cpy, file_name_args, strlen (file_name_args)+1);
 
   for ((token = strtok_r (file_name_args_cpy, " ", &save_ptr)); token != NULL && argc < ARG_MAX;
@@ -537,6 +553,9 @@ setup_stack (void **esp, char *file_name_args)
     }
 
   char **argv = malloc((argc+1)*sizeof(char*));
+
+  if(argv == NULL)
+    return false;
   /* Load arguments*/
   for (token = strtok_r (file_name_args, " ", &save_ptr); token != NULL;
     token = strtok_r (NULL, " ", &save_ptr))
