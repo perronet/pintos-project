@@ -20,10 +20,8 @@
 #include "threads/vaddr.h"
 #include "devices/timer.h"
 
-#define ARG_MAX 100
-
 static thread_func start_process NO_RETURN;
-static bool load (const char *cmdline, void (**eip) (void), void **esp);
+static bool load (struct args_struct *file_name_args, void (**eip) (void), void **esp);
 
 /* Starts a new thread running a user program loaded from
    FILENAME.  The new thread may be scheduled (and may even exit)
@@ -32,32 +30,43 @@ static bool load (const char *cmdline, void (**eip) (void), void **esp);
 tid_t
 process_execute (const char *file_name) 
 {
-  char *fn_copy, *save_ptr;
+  char *file_name_only, *file_name_copy, *save_ptr;
+  struct args_struct *name_args;
   struct thread *cur = thread_current ();
   struct thread *child;
   tid_t tid;
 
   /* Make a copy of FILE_NAME.
      Otherwise there's a race between the caller and load(). */
-  fn_copy = palloc_get_page (0);
-  if (fn_copy == NULL)
+  name_args = palloc_get_page (0);
+  if (name_args == NULL)
     return TID_ERROR;
-  strlcpy (fn_copy, file_name, PGSIZE);
 
-  file_name = strtok_r((char*)file_name, " ", &save_ptr );
+  file_name_copy = malloc(sizeof (char)*(strlen (file_name)+1));
+  if (file_name_copy == NULL)
+    return TID_ERROR;
+  strlcpy (file_name_copy, file_name, strlen (file_name)+1);
+
+  /* All arguments. */
+  strlcpy (name_args->file_args, file_name_copy, strlen (file_name_copy)+1);
+  file_name_only = strtok_r (file_name_copy, " ", &save_ptr );
+  /* Only filename. */
+  strlcpy (name_args->file_name, file_name_only, strlen (file_name_only)+1);
 
   /* Create a new thread to execute FILE_NAME. */
-  tid = thread_create (file_name, PRI_DEFAULT, start_process, fn_copy);
+  tid = thread_create (file_name_only, PRI_DEFAULT, 
+    start_process, name_args);
   if (tid == TID_ERROR)
   {
-    palloc_free_page (fn_copy); 
+    palloc_free_page (name_args); 
   }
   else
   {
     child = lookup_tid (tid);
-
     list_push_back (&cur->children_list, &child->children_elem);
   }
+  free(file_name_copy);
+
   return tid;
 }
 
@@ -66,7 +75,6 @@ process_execute (const char *file_name)
 static void
 start_process (void *file_name_args)
 {
-  char *file_name = file_name_args;
   struct intr_frame if_;
   bool success;
   struct thread* parent_thread;
@@ -76,7 +84,7 @@ start_process (void *file_name_args)
   if_.gs = if_.fs = if_.es = if_.ds = if_.ss = SEL_UDSEG;
   if_.cs = SEL_UCSEG;
   if_.eflags = FLAG_IF | FLAG_MBS;
-  success = load (file_name_args, &if_.eip, &if_.esp);
+  success = load ((struct args_struct *)file_name_args, &if_.eip, &if_.esp);
 
   parent_thread = lookup_tid (thread_current ()->parent_tid);
   if (parent_thread != NULL)
@@ -85,12 +93,11 @@ start_process (void *file_name_args)
     sema_up(&parent_thread->child_sema);
   }
 
-  /* If load failed, quit. */
-  palloc_free_page (file_name);
-
   if (!success){
     thread_exit ();
   }
+
+  palloc_free_page (file_name_args);
 
   /* Start the user process by simulating a return from an
      interrupt, implemented by intr_exit (in
@@ -270,15 +277,17 @@ static bool load_segment (struct file *file, off_t ofs, uint8_t *upage,
    and its initial stack pointer into *ESP.
    Returns true if successful, false otherwise. */
 bool
-load (const char *file_name, void (**eip) (void), void **esp) 
+load (struct args_struct *file_name_args, void (**eip) (void), void **esp) 
 {
   struct thread *t = thread_current ();
-  char *file_name_args, *save_ptr;
   struct Elf32_Ehdr ehdr;
   struct file *file = NULL;
   off_t file_ofs;
   int i;
   bool success = false;
+
+  if (file_name_args == NULL)
+    return success;
 
   /* Allocate and activate page directory. */
   t->pagedir = pagedir_create ();
@@ -286,20 +295,11 @@ load (const char *file_name, void (**eip) (void), void **esp)
     goto done;
   process_activate ();
 
-  /* Split into arguments */
-  file_name_args = palloc_get_page(0); // TODO palloc_free_page(file_name_args)
-  if (file_name_args == NULL)
-    return TID_ERROR;
-
-  strlcpy (file_name_args, file_name, strlen(file_name)+1);
-
-  file_name = strtok_r((char*)file_name, " ", &save_ptr );
-
   /* Open executable file. */
-  file = filesys_open (file_name);
+  file = filesys_open (file_name_args->file_name);
   if (file == NULL) 
     {
-      printf ("load: %s: open failed\n", file_name);
+      printf ("load: %s: open failed\n", file_name_args->file_name);
       file_close (file);
       goto done; 
     }
@@ -318,7 +318,7 @@ load (const char *file_name, void (**eip) (void), void **esp)
       || ehdr.e_phentsize != sizeof (struct Elf32_Phdr)
       || ehdr.e_phnum > 1024) 
     {
-      printf ("load: %s: error loading executable\n", file_name);
+      printf ("load: %s: error loading executable\n", file_name_args->file_name);
       goto done; 
     }
 
@@ -382,7 +382,7 @@ load (const char *file_name, void (**eip) (void), void **esp)
     }
 
   /* Set up stack. */
-  if (!setup_stack (esp, file_name_args))
+  if (!setup_stack (esp, file_name_args->file_args))
     goto done;
 
   /* Start address. */
@@ -524,7 +524,7 @@ setup_stack (void **esp, char *file_name_args)
   char *save_ptr, *token, *file_name_args_cpy;
   int argc = 0, i = 0;
 
-  file_name_args_cpy = palloc_get_page(0); // TODO palloc_free_page(file_name_args_cpy)
+  file_name_args_cpy = malloc((strlen (file_name_args)+1)*sizeof (char)); 
   strlcpy (file_name_args_cpy, file_name_args, strlen (file_name_args)+1);
 
   for ((token = strtok_r (file_name_args_cpy, " ", &save_ptr)); token != NULL && argc < ARG_MAX;
@@ -533,7 +533,6 @@ setup_stack (void **esp, char *file_name_args)
     }
 
   char **argv = malloc((argc+1)*sizeof(char*));
-
   /* Load arguments*/
   for (token = strtok_r (file_name_args, " ", &save_ptr); token != NULL;
     token = strtok_r (NULL, " ", &save_ptr))
@@ -573,7 +572,8 @@ setup_stack (void **esp, char *file_name_args)
   uint32_t ret = 0;
   memcpy (*esp, &ret, sizeof(uint32_t)); 
 
-  free(argv);
+  free (argv);
+  free (file_name_args_cpy);
 
   return success;
 }
