@@ -13,3 +13,6 @@ cd ../../examples; make; cd ../userprog/build; "pintos -p ../../examples/echo -a
 
 STRING TO RECOMPILE RUN SINGLE TEST (in build directory)
 cd ..; make; cd build; make tests/userprog/sc-bad-arg.result
+
+NORMAL RUN WITH FILESYSTEM READY
+make; pintos -q run 'echo x'
