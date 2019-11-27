@@ -208,9 +208,7 @@ static void halt ()
 static void exit (int status)
 {
   //printf("EXIT %d\n", status);
-  thread_current ()->exit_status = status;
-  close_all_files_of (thread_current ()->tid);
-  thread_exit ();
+  thread_exit_with_status (status);
 }
 
 static pid_t exec (const char *file)

@@ -11,6 +11,7 @@
 #include "threads/switch.h"
 #include "threads/synch.h"
 #include "threads/vaddr.h"
+#include "filesys/fsaccess.h"
 #ifdef USERPROG
 #include "userprog/process.h"
 #include "userprog/pagedir.h"
@@ -303,12 +304,22 @@ thread_tid (void)
   return thread_current ()->tid;
 }
 
+void
+thread_exit_with_status (int status)
+{
+  struct thread *current = thread_current ();
+  current->exit_status = status;
+  thread_exit ();
+}
+
 /* Deschedules the current thread and destroys it.  Never
    returns to the caller. */
 void
 thread_exit (void) 
 {
   ASSERT (!intr_context ());
+
+  close_all_files_of (thread_current ()->tid);
 
 #ifdef USERPROG
   process_exit ();

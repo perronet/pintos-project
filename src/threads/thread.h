@@ -148,6 +148,7 @@ struct thread *thread_current (void);
 tid_t thread_tid (void);
 const char *thread_name (void);
 
+void thread_exit_with_status (int status) NO_RETURN;
 void thread_exit (void) NO_RETURN;
 void thread_yield (void);
 void thread_sleep (int64_t until);
