@@ -30,5 +30,5 @@ int write_open_file (int fd_num, void *buffer, unsigned length);
 void seek_open_file (int fd_num, unsigned position);
 unsigned tell_open_file (int fd_num);
 void close_open_file (int fd_num);
-void close_all_files_of(tid_t thread);
+void close_all_files(void);
 #endif

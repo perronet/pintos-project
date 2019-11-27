@@ -202,19 +202,17 @@ close_open_file (int fd_num)
 {
   lock_acquire (&files_lock); 
   struct file_descriptor *fd = get_file_descriptor (fd_num);
-  if (fd != NULL)
+  if (fd != NULL && fd->owner == thread_current ()->tid)
   {
-      file_close(fd->open_file);
-      list_remove (&fd->elem);      
-      free(fd);
+    file_close(fd->open_file);
+    list_remove (&fd->elem);      
+    free(fd);
   }
   lock_release (&files_lock);
-
-  //#TODO handle delete of UNIX semantics of file deletion
 }
 
 void 
-close_all_files_of(tid_t thread)
+close_all_files()
 {
   lock_acquire (&files_lock);
 
@@ -224,7 +222,7 @@ close_all_files_of(tid_t thread)
     {
       struct file_descriptor *fd;
       fd = list_entry (e, struct file_descriptor, elem);
-      if (fd->owner == thread)
+      if (fd->owner == thread_current ()->tid)
         {
           file_close(fd->open_file);
           e = list_next(e);
@@ -233,4 +231,5 @@ close_all_files_of(tid_t thread)
     }
 
   lock_release (&files_lock);
+
 }

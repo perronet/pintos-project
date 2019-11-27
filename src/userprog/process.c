@@ -177,14 +177,18 @@ process_exit (void)
       pagedir_destroy (pd);
     }
 
+  if(cur->run_file != NULL)
+    {
+      /* Automatically allows writes again. */
+      file_close(cur->run_file); 
+    }
+
   sema_up (&cur->exit_sema);
   /* Wait that the parent process has actually read the exit status */
   /* This is needed because if this process proceeds, its thread struct */
   /* Could be deallocated by the scheduler at the next process switch. */
   sema_down (&cur->exit_status_read_sema);
 
-  if(cur->run_file != NULL)
-    file_close(cur->run_file); //automatically allows writes again.
 }
 
 /* Sets up the CPU for running user code in the current

@@ -319,7 +319,7 @@ thread_exit (void)
 {
   ASSERT (!intr_context ());
 
-  close_all_files_of (thread_current ()->tid);
+  close_all_files ();
 
 #ifdef USERPROG
   process_exit ();
