@@ -24,6 +24,25 @@ static void seek (int fd, unsigned position);
 static unsigned tell (int fd);
 static void close (int fd);
 
+#define CHECK_PTR(esp) \
+{\
+  if (!is_valid_address_of_thread (thread_current (), esp))\
+    exit (-1);\
+}
+
+#define CHECK_PTR_RANGE(start, end) \
+{\
+  if (!is_valid_address_range_of_thread (thread_current (), start, end))\
+    exit(-1);\
+}
+
+#define GET_PARAM(esp,type)\
+({\
+    CHECK_PTR(esp);\
+    type ret = *(type*)esp;\
+    esp += sizeof(type*);\
+    ret;\
+})
 
 void
 syscall_init (void) 
@@ -35,8 +54,7 @@ syscall_init (void)
 static void
 syscall_handler (struct intr_frame *f) 
 {
-  if (!is_valid_address_of_thread (thread_current (), f->esp))
-    exit (-1);
+  CHECK_PTR(f->esp);
   
   void *esp = f->esp;
   int syscall_id = *(int *)esp;
@@ -54,123 +72,69 @@ syscall_handler (struct intr_frame *f)
       halt ();
     break;
     case SYS_EXIT:
-      if (!is_valid_address_of_thread (thread_current (), esp))
-        exit (-1);
-      status = *(int *)esp;
-      esp += sizeof(int);
+      status = GET_PARAM(esp, int);
 
       exit (status);
     break;
     case SYS_EXEC:
-      if (!is_valid_address_of_thread (thread_current (), esp))
-        exit (-1);
-      file = *(char **)esp;
-      esp += sizeof(char *);
+      file = GET_PARAM(esp, char *);
 
       f->eax = exec (file);
     break;
     case SYS_WAIT:
-      if (!is_valid_address_of_thread (thread_current (), esp))
-        exit (-1);
-      pid = *(pid_t *)esp;
-      esp += sizeof(pid_t);
-    
+      pid = GET_PARAM(esp, pid_t);
+
       f->eax = wait (pid);
     break;
     case SYS_CREATE:
-      if (!is_valid_address_of_thread (thread_current (), esp))
-        exit (-1);
-      file = *(char **)esp;
-      esp += sizeof(char *);
-      if (!is_valid_address_of_thread (thread_current (), esp))
-        exit (-1);
-      initial_size = *(unsigned *)esp;
-      esp += sizeof(unsigned); 
-    
+      file = GET_PARAM(esp, char *);
+      initial_size = GET_PARAM(esp, unsigned);
+
       f->eax = create (file, initial_size);
     break;
     case SYS_REMOVE:
-      if (!is_valid_address_of_thread (thread_current (), esp))
-        exit (-1);
-      file = *(char **)esp;
-      esp += sizeof(char *);
+      file = GET_PARAM(esp, char *);
 
       f->eax = remove (file);
     break;
     case SYS_OPEN:
-      if (!is_valid_address_of_thread (thread_current (), esp))
-        exit (-1);
-      file = *(char **)esp;
-      esp += sizeof(char *);
-    
+      file = GET_PARAM(esp, char *);
+
       f->eax = open (file);
     break;
     case SYS_FILESIZE:
-      if (!is_valid_address_of_thread (thread_current (), esp))
-        exit (-1);
-      fd = *(int *)esp;
-      esp += sizeof(int); 
-    
+      fd = GET_PARAM(esp, int);
+
       f->eax = filesize (fd);
     break;
     case SYS_READ:
-      if (!is_valid_address_of_thread (thread_current (), esp))
-        exit (-1);
-      fd = *(int *)esp;
-      esp += sizeof(int);
-      if (!is_valid_address_of_thread (thread_current (), esp))
-        exit (-1);
-      buffer = *(void **)esp;
-      esp += sizeof(void *);
-      if (!is_valid_address_of_thread (thread_current (), esp))
-        exit (-1);
-      size = *(unsigned *)esp;
-      esp += sizeof(unsigned);   
+      fd = GET_PARAM(esp, int);
+      buffer = GET_PARAM(esp, void *);
+      size = GET_PARAM(esp, unsigned);
 
       f->eax = read (fd, buffer, size); 
     break;
     case SYS_WRITE:
-      if (!is_valid_address_of_thread (thread_current (), esp))
-        exit (-1);
-      fd = *(int *)esp;
-      esp += sizeof(int);
-      if (!is_valid_address_of_thread (thread_current (), esp))
-        exit (-1);
-      buffer_cnst = *(void **)esp;
-      esp += sizeof(void *);
-      if (!is_valid_address_of_thread (thread_current (), esp))
-        exit (-1);
-      size = *(unsigned *)esp;
-      esp += sizeof(unsigned);
+      fd = GET_PARAM(esp, int);
+      buffer_cnst = GET_PARAM(esp, void *);
+      size = GET_PARAM(esp, unsigned);
 
       f->eax = write (fd, buffer_cnst, size);
     break;
     case SYS_SEEK:
-      if (!is_valid_address_of_thread (thread_current (), esp))
-        exit (-1);
-      fd = *(int *)esp;
-      esp += sizeof(int);
-      if (!is_valid_address_of_thread (thread_current (), esp))
-        exit (-1); 
-      position = *(unsigned *)esp;
-      esp += sizeof(unsigned); 
-    
+      fd = GET_PARAM(esp, int);
+      position = GET_PARAM(esp, unsigned);
+
       seek (fd, position);
     break;
     case SYS_TELL:
-      if (!is_valid_address_of_thread (thread_current (), esp))
-        exit (-1);
-      fd = *(int *)esp;
-      esp += sizeof(int); 
-    
+      fd = GET_PARAM(esp, int);
+
       f->eax = tell (fd);
     break;
     case SYS_CLOSE:
-      if (!is_valid_address_of_thread (thread_current (), esp))
-        exit (-1);
-      fd = *(int *)esp;
-      esp += sizeof(int); 
-    
+      fd = GET_PARAM(esp, int);
+
       close (fd);
     break;
 
@@ -201,21 +165,17 @@ syscall_handler (struct intr_frame *f)
 
 static void halt ()
 {
-  //printf("HALT\n");
   shutdown_power_off ();
 }
 
 static void exit (int status)
 {
-  //printf("EXIT %d\n", status);
   thread_exit_with_status (status);
 }
 
 static pid_t exec (const char *file)
 {
-  // printf("EXEC %p executing: %s\n", file, file);
-  if (!is_valid_address_of_thread (thread_current (), file))
-    exit (-1);
+  CHECK_PTR(file);
 
   struct thread *cur = thread_current ();
   cur->child_born_status = 0;
@@ -231,54 +191,35 @@ static pid_t exec (const char *file)
 
 static int wait (pid_t pid)
 {
-  //printf("WAIT %d\n", pid);
   return process_wait (pid);
 }
 
 static bool create (const char *file, unsigned initial_size)
 {
-  //printf("CREATE %p %d\n", file, initial_size);
-
-  if (!is_valid_address_of_thread (thread_current (), file))
-    exit (-1);
-
+  CHECK_PTR(file);
   return create_file(file, initial_size);
 }
 
 static bool remove (const char *file)
 {
-  //printf("REMOVE %p\n", file);
-
-  if (!is_valid_address_of_thread (thread_current (), file))
-    exit (-1);
-
+  CHECK_PTR(file);
   return remove_file(file);
 }
 
 static int open (const char *file)
 {
-  //printf("OPEN %p\n", file);
-
-  if (!is_valid_address_of_thread (thread_current (), file))
-    exit (-1);
-
+  CHECK_PTR(file);
   return open_file(file);
 }
 
 static int filesize (int fd)
 {
-  //printf("FILESIZE %d\n", fd);
   return filelength_open_file (fd);
 }
 
 static int read (int fd, void *buffer, unsigned length)
 {
-  //printf("READ %d %p %d\n", fd, buffer, length);
-  
-  struct thread * current = thread_current ();
-  if (!is_valid_address_range_of_thread (current, buffer, buffer + length))
-      exit(-1);
-
+  CHECK_PTR_RANGE(buffer, buffer + length);
   return read_open_file(fd, buffer, length);
 }
 
@@ -287,29 +228,22 @@ static int read (int fd, void *buffer, unsigned length)
    */
 static int write (int fd, const void *buffer, unsigned length)
 {
-  //printf("WRITE %d %p %d need to write: %s\n", fd, buffer, length, (char *)buffer);
-  
-  struct thread * current = thread_current ();
   void *buf = (void *)buffer;
-  if (!is_valid_address_range_of_thread (current, buf, buf + length))
-    exit(-1);
+  CHECK_PTR_RANGE(buf, buf + length);
   return write_open_file (fd, buf, length);
 }
 
 static void seek (int fd, unsigned position)
 {
-  //printf("SEEK %d %d\n", fd, position);
   seek_open_file (fd, position);
 }
 
 static unsigned tell (int fd)
 {
-  //printf("TELL %d\n", fd);
   return tell_open_file (fd);
 }
 
 static void close (int fd)
 {
-  //printf("CLOSE %d\n", fd);
   close_open_file (fd);
 }
