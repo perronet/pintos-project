@@ -64,12 +64,12 @@ bookkeping. Individual explanations in the comments.
 
 struct args_struct
 {
-	char file_name[ARG_MAX];
+	char file_name[FILE_MAX];
 	char file_args[ARG_MAX];
 };
 
 This struct is used to conveniently pass the command arguments 
-to the load and setup_stack function.
+to the load and setup_stack functions.
 file_name is just the executable's name, without the arguments.
 file_args is the executable's name plus its arguments.
 
@@ -83,7 +83,7 @@ The arguments are parsed in the order in which they are passed by the user
 (left to right) by using strtok_r().
 It's fine to push them on the stack in this order, because they will always be
 referenced by the pointers in argv[]. These pointers are simply saved in an array,
-and then loaded in reversed order on the stack. This is important becuase the
+and then loaded in reversed order on the stack. This is important because the
 calling convention imposes to push these pointers in reversed order.
 
 To avoid overflow it's enough to check that the stack pointer is higher than
@@ -103,13 +103,11 @@ different calls to strtok().
 >> and arguments.  In Unix-like systems, the shell does this
 >> separation.  Identify at least two advantages of the Unix approach.
 
-TODO
-TODO
-TODO
-TODO
-TODO
-TODO
-TODO
+1. The string manipulation is performed outside of the kernel, thus reducing
+the work that the kernel has to do.
+2. The fact that the string splitting is done in userspace reduces the risk
+of kernel bugs.
+
 			     SYSTEM CALLS
 			     ============
 
@@ -130,8 +128,7 @@ struct file_descriptor
 };
 
 We use this struct to represent a file descriptor. File descriptors are 
-stored in a list.
-
+stored in a global list.
 
 struct lock files_lock;
 unsigned int fd_count;
@@ -143,7 +140,7 @@ available fd number.
 >> Are file descriptors unique within the entire OS or just within a
 >> single process?
 
-A list of open file descriptors is stored in memory. Inside each file 
+A list of file descriptors is stored in memory. Inside each file 
 descriptor there is a pointer to an open file. File descriptors are unique 
 within the entire OS. They are also unique within the entire execution 
 as long as fd_count does not overflow.
@@ -181,8 +178,9 @@ When this happens, we check that the given memory range is valid. When
 the memory to check is just one pointer, we just call page_dir_get_page()
 once. Conversely, whenever we need to check a range, we perform the checks
 described in (B3). In our algorithm, when exacly a page has to be checked,
-we only check twice: the first and the last address. If the initial address
-has offset 0, this number could be brought down to one: by considering the 
+we only check twice: the first and the last address, so the page table is
+queried twice. 
+If the initial address has offset 0, this number could be brought down to one: by considering the 
 offset of the addresses we could deduce that the first and the last addresses 
 fall in the same page. Exactly the same argument holds for two bytes, given a 
 for example string of length 2.
@@ -253,7 +251,20 @@ static int read (int fd, void *buffer, unsigned length)
 >> loading.  How does your code ensure this?  How is the load
 >> success/failure status passed back to the thread that calls "exec"?
 
-By using a semaphore TODO
+Every process has in its thread struct:
+* struct semaphore child_sema - A semaphore used to signal the father to stop waiting for our successful or unsuccsessful execution.
+* int child_born_status - Used to tell the father process if the loading was
+successful or unsuccsessful.
+
+In the exec system call the process will wait on the semaphore after executing the
+child process. The child process will then execute start_process(), in which
+the executable image is loaded. After loading, the child will wake up the father
+and return the success of the loading by doing:
+
+parent_thread->child_born_status = (success ? 1 : -1); 
+sema_up(&parent_thread->child_sema);
+
+And the father will subsequently read the status.
 
 >> B8: Consider parent process P with child process C.  How do you
 >> ensure proper synchronization and avoid race conditions when P
@@ -262,7 +273,30 @@ By using a semaphore TODO
 >> terminates without waiting, before C exits?  After C exits?  Are
 >> there any special cases?
 
-By using a semaphore TODO
+# P calls wait(C) before C exits
+This is the basic case, P will wait on the semaphore of the child, then when the
+child exits it will unlock the semaphore, wait for the parent to read the exit
+status (with another semaphore), then finally the parent will unlock the child, who
+will exit.
+
+# P calls wait(C) after C exits
+In this case the father will look for C into its list of children and will
+not wait because it won't be able to find it.
+
+# How do you ensure that all resources are freed in each case?
+All resources are freed on exit. The process' thread struct is then 
+freed the next time the scheduler schedules it out.
+
+# P terminates without waiting, before C exits
+Every process unlocks all of his children's semaphores (exit_status_read_sema)
+before exiting. This way, any child C can exit without being stuck on this
+semaphore, which would never be unlocked by P, since it exited before.
+
+# P terminates without waiting, after C exits
+This doesn't present any problem, P will just terminate and not do anything
+with any of the children. The children will remain hanging on the semaphore, then
+when P exits it will release every child's semaphore, so all children will
+subsequently exit.
 
 ---- RATIONALE ----
 
@@ -279,60 +313,13 @@ the previous check multiple times (sup(range / PGSIZE) + 1 times).
 >> for file descriptors?
 
 A clear advantage is its simplicity. A file descriptor is just a struct,
-referenced by a number and its owner. It is very easy to do bookkeping
-TODO
-TODO
-TODO
-TODO
-TODO
-TODO
-TODO
-TODO
-TODO
-TODO
-TODO
-TODO
-TODO
-TODO
-TODO
-TODO
-TODO
-TODO
-TODO
-TODO
-TODO
-TODO
+referenced by a number and its owner. It is very easy to do bookkeping this way.
+Every file descriptor is stored in a global list. A disadvantage of this approach
+is that this requires O(n) access; a possible improvment could be to use an hash
+table indexed by thread and add a list of file descriptors in each thread struct. 
 
 >> B11: The default tid_t to pid_t mapping is the identity mapping.
 >> If you changed it, what advantages are there to your approach?
 
-TODO
-TODO
-TODO
-TODO
-TODO
-
-			   SURVEY QUESTIONS
-			   ================
-
-Answering these questions is optional, but it will help us improve the
-course in future quarters.  Feel free to tell us anything you
-want--these questions are just to spur your thoughts.  You may also
-choose to respond anonymously in the course evaluations at the end of
-the quarter.
-
->> In your opinion, was this assignment, or any one of the three problems
->> in it, too easy or too hard?  Did it take too long or too little time?
-
->> Did you find that working on a particular part of the assignment gave
->> you greater insight into some aspect of OS design?
-
->> Is there some particular fact or hint we should give students in
->> future quarters to help them solve the problems?  Conversely, did you
->> find any of our guidance to be misleading?
-
->> Do you have any suggestions for the TAs to more effectively assist
->> students, either for future quarters or the remaining projects?
-
->> Any other comments?
- 
+It could be possible to map different kernel threads to a single user process.
+This way, a process could have more threads, allowing for multithreading.

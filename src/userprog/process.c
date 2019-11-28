@@ -118,10 +118,7 @@ start_process (void *file_name_args)
    exception), returns -1.  If TID is invalid or if it was not a
    child of the calling process, or if process_wait() has already
    been successfully called for the given TID, returns -1
-   immediately, without waiting.
-
-   This function will be implemented in problem 2-2.  For now, it
-   does nothing. */
+   immediately, without waiting. */
 int
 process_wait (tid_t child_tid) 
 {
@@ -162,6 +159,9 @@ void
 process_exit (void)
 {
   struct thread *cur = thread_current ();
+  struct thread *child;
+  struct list *children_list = &cur->children_list;
+  struct list_elem *chld_elem;
   uint32_t *pd;
 
   /* Destroy the current process's page directory and switch back
@@ -187,12 +187,21 @@ process_exit (void)
       file_close(cur->run_file); 
     }
 
+  /* Children don't need to wait on the semaphore after we exit. */
+  if (!list_empty(children_list)) {
+    for (chld_elem = list_front(children_list); chld_elem != list_end(children_list); 
+      chld_elem = list_next(chld_elem)) {
+
+      child = list_entry(chld_elem, struct thread, children_elem);
+      sema_up (&child->exit_status_read_sema);
+    }
+  }
+
   sema_up (&cur->exit_sema);
   /* Wait that the parent process has actually read the exit status */
   /* This is needed because if this process proceeds, its thread struct */
   /* Could be deallocated by the scheduler at the next process switch. */
   sema_down (&cur->exit_status_read_sema);
-
 }
 
 /* Sets up the CPU for running user code in the current
