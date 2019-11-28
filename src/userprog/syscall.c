@@ -221,11 +221,12 @@ static pid_t exec (const char *file)
   cur->child_born_status = 0;
   tid_t tid = process_execute (file);
 
+  if(tid != TID_ERROR)
+    sema_down (&cur->child_sema);
   if (cur->child_born_status == -1)
     return -1;
   else
     return tid;
-      sema_down (&cur->child_sema);
 }
 
 static int wait (pid_t pid)
