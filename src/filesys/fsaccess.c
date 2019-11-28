@@ -55,7 +55,7 @@ get_file_descriptor (int fd_num)
     {
       struct file_descriptor *fd;
       fd = list_entry (e, struct file_descriptor, elem);
-      if (fd->fd_num == fd_num)
+      if (fd->fd_num == fd_num && fd->owner == thread_current()->tid)
           return fd;
     }
 
