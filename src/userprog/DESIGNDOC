@@ -29,6 +29,40 @@ Marco Perronet <perronet@mpi-sws.org> 416159
 >> `struct' member, global or static variable, `typedef', or
 >> enumeration.  Identify the purpose of each in 25 words or less.
 
+struct thread
+  {
+  	...
+    
+    tid_t parent_tid;                   /* Parent thread identifier. */
+    int exit_status;                    /* Exit status. */
+    int child_born_status;              /* Child status after exec syscall. */                     
+    bool waited;                        /* Process was waited by the father */
+    struct file * run_file;             /* The file of the source code */
+    
+    /* Shared between thread.c and synch.c. */
+    struct list_elem elem;              /* List element. */
+
+    /* List of threads that are waiting for this thread to exit. */
+    struct list children_list;
+    struct list_elem children_elem;
+
+    /* Signal waiting parent when the process exits. */
+    struct semaphore exit_sema;
+
+    /* Signal the dying child process when its exit_status was read.
+       This is needed to prevent it from deallocating before that happens. */
+    struct semaphore exit_status_read_sema;
+
+    /* Synchronize the father with the child during exec syscall. */
+    struct semaphore child_sema;
+
+    ...
+  }
+
+We added several new structs to thread in order to synchronize and do more 
+bookkeping. Individual explanations in the comments.
+
+
 ---- ALGORITHMS ----
 
 >> A2: Briefly describe how you implemented argument parsing.  How do
@@ -52,14 +86,56 @@ Marco Perronet <perronet@mpi-sws.org> 416159
 >> `struct' member, global or static variable, `typedef', or
 >> enumeration.  Identify the purpose of each in 25 words or less.
 
+/* Represents an open file. */
+struct file_descriptor 
+{
+  int fd_num;
+  struct file *open_file;
+  tid_t owner;
+
+  struct list_elem elem; 
+};
+
+We use this struct to represent a file descriptor. File descriptors are 
+stored in a list.
+
+
+struct lock files_lock;
+unsigned int fd_count;
+
+We added a lock to synchronize the file system and a counter to store the next
+available fd number.
+
 >> B2: Describe how file descriptors are associated with open files.
 >> Are file descriptors unique within the entire OS or just within a
 >> single process?
+
+A list of open file descriptors is stored in memory. Inside each file 
+descriptor there is a pointer to an open file. File descriptors are unique 
+within the entire OS. They are also unique within the entire execution 
+as long as fd_count does not overflow.
 
 ---- ALGORITHMS ----
 
 >> B3: Describe your code for reading and writing user data from the
 >> kernel.
+
+The major challenge here is to make sure that each memory address 
+received belongs to the process that issued the syscall. In order to check
+a single memory address, we need to make sure that
+- The pointer ranges from 1 to PHYS_BASE
+- The pointer belongs to a page instantiated for the process.
+When checking a memory range, we need to repeat the test above multiple times,
+ideally for each single address of the range. Doing so is correct, but would
+result in useless overheads: due to the page system, we just need to check
+- The first address (A)
+- All the addresses that are k * PGSIZE distant from the first address. (B)
+- The last address (C)
+
+To visualize:
+  page 1   page 2   page 3
+|  _A__  |  _B__  |  C___ |
+
 
 >> B4: Suppose a system call causes a full page (4,096 bytes) of data
 >> to be copied from user space into the kernel.  What is the least
@@ -67,6 +143,18 @@ Marco Perronet <perronet@mpi-sws.org> 416159
 >> (e.g. calls to pagedir_get_page()) that might result?  What about
 >> for a system call that only copies 2 bytes of data?  Is there room
 >> for improvement in these numbers, and how much?
+
+When this happens, we check that the given memory range is valid. When
+the memory to check is just one pointer, we just call page_dir_get_page()
+once. Conversely, whenever we need to check a range, we perform the checks
+described in (B3). In our algorithm, when exacly a page has to be checked,
+we only check twice: the first and the last address. If the initial address
+has offset 0, this number could be brought down to one: by considering the 
+offset of the addresses we could deduce that the first and the last addresses 
+fall in the same page. Exactly the same argument holds for two bytes, given a 
+for example string of length 2.
+Of course, we have to add to this number also the subsequent accesses to the
+passed values.
 
 >> B5: Briefly describe your implementation of the "wait" system call
 >> and how it interacts with process termination.
@@ -84,6 +172,46 @@ Marco Perronet <perronet@mpi-sws.org> 416159
 >> allocated resources (locks, buffers, etc.) are freed?  In a few
 >> paragraphs, describe the strategy or strategies you adopted for
 >> managing these issues.  Give an example.
+
+In the syscall infrastructure, we use the following macro to fetch a 
+parameter:
+
+#define GET_PARAM(esp,type)\
+({\
+    CHECK_PTR(esp);\
+    type ret = *(type*)esp;\
+    esp += sizeof(type*);\
+    ret;\
+})
+
+CHECK_PTR() performs the error checking, and exits in case of errors.
+This way, the code that fetches parameters with error-handling becomes 
+much more readable:
+
+In order not to forget resources, we explicitly handle error cases after
+each call to a function. In order to make a clear distinction between
+the syscall problems and file system access problems, we created a new file
+called `fsaccess` and moved all the code about accessing the file system
+(lock, file descriptors) there.
+
+When we adopt all of these solutions, the resulting code in syscall.c becomes:
+
+case SYS_READ:
+  fd = GET_PARAM(esp, int);
+  buffer = GET_PARAM(esp, void *);
+  size = GET_PARAM(esp, unsigned);
+
+  f->eax = read (fd, buffer, size); 
+break;
+
+...
+
+static int read (int fd, void *buffer, unsigned length)
+{
+  CHECK_PTR_RANGE(buffer, buffer + length);
+  return read_open_file(fd, buffer, length);
+}
+
 
 ---- SYNCHRONIZATION ----
 
@@ -108,10 +236,35 @@ It is lean and simple. It is just required to make some memory checks
 in cascade (NULL check, PHYS_BASE check, valid page check).
 To check for a range of addresses (i.e. when something potentially 
 bigger than a page is passed to the kernel) it is sufficient to perform
-the previous check multiple times (range / PGSIZE + 1 times).
+the previous check multiple times (sup(range / PGSIZE) + 1 times).
 
 >> B10: What advantages or disadvantages can you see to your design
 >> for file descriptors?
+
+A clear advantage is its simplicity. A file descriptor is just a struct,
+referenced by a number and its owner. It is very easy to do bookkeping
+TODO
+TODO
+TODO
+TODO
+TODO
+TODO
+TODO
+TODO
+TODO
+TODO
+TODO
+TODO
+TODO
+TODO
+TODO
+TODO
+TODO
+TODO
+TODO
+TODO
+TODO
+TODO
 
 >> B11: The default tid_t to pid_t mapping is the identity mapping.
 >> If you changed it, what advantages are there to your approach?
