@@ -66,10 +66,13 @@ int
 open_file(const char *filename)
 {
   struct file_descriptor *fd = malloc(sizeof(struct file_descriptor));  
+  
+  lock_acquire (&files_lock);
   struct file * f = filesys_open (filename);
 
   if(f == NULL)
   {
+    lock_release (&files_lock);
     if(fd != NULL)
       free(fd);
 
@@ -77,14 +80,13 @@ open_file(const char *filename)
   }
   else
   {
-    lock_acquire (&files_lock);
     fd->fd_num = fd_count;
     fd->open_file = f;
     fd->owner = thread_current ()->tid;
     list_push_front (&open_files, &fd->elem);
     fd_count ++;
-    lock_release (&files_lock);
 
+    lock_release (&files_lock);
     return fd->fd_num;
   }
 }
@@ -231,6 +233,7 @@ close_all_files()
           file_close(fd->open_file);
           e = list_next(e);
           list_remove (&fd->elem);      
+          free(fd);
         }
     }
 
