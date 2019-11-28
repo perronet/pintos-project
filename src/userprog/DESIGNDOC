@@ -62,6 +62,16 @@ struct thread
 We added several new structs to thread in order to synchronize and do more 
 bookkeping. Individual explanations in the comments.
 
+struct args_struct
+{
+	char file_name[ARG_MAX];
+	char file_args[ARG_MAX];
+};
+
+This struct is used to conveniently pass the command arguments 
+to the load and setup_stack function.
+file_name is just the executable's name, without the arguments.
+file_args is the executable's name plus its arguments.
 
 ---- ALGORITHMS ----
 
@@ -69,14 +79,37 @@ bookkeping. Individual explanations in the comments.
 >> you arrange for the elements of argv[] to be in the right order?
 >> How do you avoid overflowing the stack page?
 
+The arguments are parsed in the order in which they are passed by the user 
+(left to right) by using strtok_r().
+It's fine to push them on the stack in this order, because they will always be
+referenced by the pointers in argv[]. These pointers are simply saved in an array,
+and then loaded in reversed order on the stack. This is important becuase the
+calling convention imposes to push these pointers in reversed order.
+
+To avoid overflow it's enough to check that the stack pointer is higher than
+PHYS_BASE-PGSIZE before pushing on the stack. The stack pointer will never go above
+PHYS_BASE because it's only decreased starting from PHYS_BASE.
+
 ---- RATIONALE ----
 
 >> A3: Why does Pintos implement strtok_r() but not strtok()?
+
+Because it's important for these functions to be reentrant. strtok() makes use of
+a global variable to save the position of the last token in the string: this is
+not safe when this function is called by multiple threads or in nested loops with
+different calls to strtok().
 
 >> A4: In Pintos, the kernel separates commands into a executable name
 >> and arguments.  In Unix-like systems, the shell does this
 >> separation.  Identify at least two advantages of the Unix approach.
 
+TODO
+TODO
+TODO
+TODO
+TODO
+TODO
+TODO
 			     SYSTEM CALLS
 			     ============
 
@@ -220,12 +253,16 @@ static int read (int fd, void *buffer, unsigned length)
 >> loading.  How does your code ensure this?  How is the load
 >> success/failure status passed back to the thread that calls "exec"?
 
+By using a semaphore TODO
+
 >> B8: Consider parent process P with child process C.  How do you
 >> ensure proper synchronization and avoid race conditions when P
 >> calls wait(C) before C exits?  After C exits?  How do you ensure
 >> that all resources are freed in each case?  How about when P
 >> terminates without waiting, before C exits?  After C exits?  Are
 >> there any special cases?
+
+By using a semaphore TODO
 
 ---- RATIONALE ----
 
@@ -268,6 +305,12 @@ TODO
 
 >> B11: The default tid_t to pid_t mapping is the identity mapping.
 >> If you changed it, what advantages are there to your approach?
+
+TODO
+TODO
+TODO
+TODO
+TODO
 
 			   SURVEY QUESTIONS
 			   ================

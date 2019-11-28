@@ -561,7 +561,8 @@ setup_stack (void **esp, char *file_name_args)
     token = strtok_r (NULL, " ", &save_ptr))
     {
       *esp -= strlen(token) + 1;
-      memcpy (*esp, token, strlen(token) + 1);
+      if (*esp > PHYS_BASE-PGSIZE)
+        memcpy (*esp, token, strlen(token) + 1);
 
       argv[i]=(char*)*esp;
       i++;
@@ -573,27 +574,32 @@ setup_stack (void **esp, char *file_name_args)
     *esp -= sizeof(char);
 
     uint8_t zero = 0;
-    memcpy (*esp, &zero, sizeof(char));
+    if (*esp > PHYS_BASE-PGSIZE)
+      memcpy (*esp, &zero, sizeof(char));
   }
 
   /* argv pointers (must load in reversed order) */
   for (int j = argc; j >= 0; j--){
     *esp -= sizeof(char*);
-    memcpy (*esp, &argv[j], sizeof(char*)); 
+    if (*esp > PHYS_BASE-PGSIZE)
+      memcpy (*esp, &argv[j], sizeof(char*)); 
   }
 
   /* Load pointer to argv */
   void *esp_before = *esp;
   *esp -= sizeof(char**);
-  memcpy (*esp, &esp_before, sizeof(char**)); 
+  if (*esp > PHYS_BASE-PGSIZE)
+    memcpy (*esp, &esp_before, sizeof(char**)); 
 
   /* Load argc */
   *esp -= sizeof(int);
-  memcpy (*esp, &argc, sizeof(int)); 
+  if (*esp > PHYS_BASE-PGSIZE)
+    memcpy (*esp, &argc, sizeof(int)); 
   /* Fake return address */
   *esp -= sizeof(uint32_t);
   uint32_t ret = 0;
-  memcpy (*esp, &ret, sizeof(uint32_t)); 
+  if (*esp > PHYS_BASE-PGSIZE)
+    memcpy (*esp, &ret, sizeof(uint32_t)); 
 
   free (argv);
   free (file_name_args_cpy);
