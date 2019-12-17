@@ -91,11 +91,16 @@ palloc_get_multiple (enum palloc_flags flags, size_t page_cnt)
       if (flags & PAL_ZERO)
         memset (pages, 0, PGSIZE * page_cnt);
     }
-  else 
-    {
-      if (flags & PAL_ASSERT)
-        PANIC ("palloc_get: out of pages");
-    }
+  // In this case we should try to swap out pages: no need to panic here, but we should use
+  // frame_alloc in the code instead of this function
+
+    //TODO if kernel page then actually panic
+
+  // else 
+  //   {
+  //     if (flags & PAL_ASSERT)
+  //       PANIC ("palloc_get: out of pages");
+  //   }
 
   return pages;
 }
