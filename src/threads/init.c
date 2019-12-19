@@ -98,10 +98,10 @@ kernel_main (void)
           init_ram_pages * PGSIZE / 1024);
 
   /* Initialize memory system. */
-  vm_frame_alloc_init ();
   palloc_init (user_page_limit);
   malloc_init ();
   paging_init ();
+  vm_frame_alloc_init ();
 
   /* Segmentation. */
 #ifdef USERPROG

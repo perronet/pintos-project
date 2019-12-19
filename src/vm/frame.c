@@ -1,12 +1,25 @@
 #include "frame.h" 
 
-static struct list frame_list;
-static struct lock frame_list_lock;
+static struct hash frame_hash;
+static struct lock frame_hash_lock;
+
+unsigned find_frame (const struct hash_elem *e, void *aux UNUSED)
+{
+  struct frame_entry *frame = hash_entry (e, struct frame_entry, elem);
+  return hash_bytes (frame->page, sizeof (frame->page));
+}
+
+bool compare_frame (const struct hash_elem *e1, const struct hash_elem *e2, void *aux UNUSED)
+{
+  struct frame_entry *frame1 = hash_entry (e1, struct frame_entry, elem);
+  struct frame_entry *frame2 = hash_entry (e2, struct frame_entry, elem);
+  return frame1->page < frame2->page;
+}
 
 void vm_frame_alloc_init ()
 {
-  list_init (&frame_list);
-  lock_init (&frame_list_lock);
+  hash_init (&frame_hash, find_frame, compare_frame, NULL);
+  lock_init (&frame_hash_lock);
 }
 
 void *vm_frame_alloc_multiple (enum palloc_flags flags, size_t page_cnt)
@@ -23,7 +36,7 @@ void *vm_frame_alloc_multiple (enum palloc_flags flags, size_t page_cnt)
     {
       for (int i = 0; i < (int)page_cnt; i++)
         {
-          if (!frame_list_add (pages, flags))
+          if (!frame_hash_add (pages, flags))
             PANIC ("Out of memory!");
           cpy += PGSIZE;
         }
@@ -44,29 +57,22 @@ void *vm_frame_alloc (enum palloc_flags flags)
 
 void vm_frame_free (void *page)
 {
-  struct list_elem *e;
-  struct frame_entry *frame = NULL;
+  struct hash_elem *e;
+  struct frame_entry find;
 
+  find.page = page;
   /* Remove from list */
-  lock_acquire (&frame_list_lock);
-  for (e = list_begin (&frame_list); e != list_end (&frame_list);
-     e = list_next (e))
-    {
-      frame = list_entry (e, struct frame_entry, elem);
-      if (frame->page == page)
-        {
-          list_remove (e);
-          free (frame);
-          break;
-        }
-    }
-  lock_release (&frame_list_lock);
+  lock_acquire (&frame_hash_lock);
+  e = hash_find (&frame_hash, &find.elem);
+  hash_delete (&frame_hash, e);
+  lock_release (&frame_hash_lock);
 
+  free (hash_entry (e, struct frame_entry, elem));
   /* Free the page */
   palloc_free_page (page);
 }
 
-bool frame_list_add (void *page, enum palloc_flags flags)
+bool frame_hash_add (void *page, enum palloc_flags flags)
 {
   struct frame_entry *frame = malloc (sizeof(struct frame_entry));
 
@@ -74,23 +80,17 @@ bool frame_list_add (void *page, enum palloc_flags flags)
     return false;
 
   frame->page = page;
-  lock_acquire (&frame_list_lock);
+  lock_acquire (&frame_hash_lock);
 
-  if (flags & PAL_USER)
-    list_push_back (&frame_list, &frame->elem);
+  if (flags & PAL_USER){
+    struct hash_elem e = frame->elem;
+    hash_insert (&frame_hash, &e);
+  }
 
-  lock_release (&frame_list_lock);
+  lock_release (&frame_hash_lock);
 
   return true;
 }
-
-// void frame_list_remove (struct list_elem *e)
-// {
-//   lock_acquire (&frame_list_lock);
-//   list_remove (e);
-//   lock_release (&frame_list_lock);
-//   free ( list_entry(e, struct frame_entry, elem));
-// }
 
 void frame_evict (struct frame_entry frame UNUSED)
 {
