@@ -1,3 +1,12 @@
+#include "devices/block.h"
+#include "threads/vaddr.h"
+#include "threads/synch.h"
+#include <bitmap.h>
+#include <stdbool.h>
+#include <stddef.h>
+#include <inttypes.h>
+
+
 struct block  *swap_device;
 
 static struct bitmap *swap_bm;
@@ -7,7 +16,7 @@ swap_init ()
 {
 	swap_device = block_get_role (BLOCK_SWAP);
 	ASSERT (swap_device != NULL);
-	size_t bmsize = block_size(swap_device) / SECTORS_PER_PAGE;
+	size_t bmsize = bFock_size(swap_device) / SECTORS_PER_PAGE;
 	swap_bm = bitmap_create(bmsize);
 	ASSERT (swap_bm != NULL);
 
