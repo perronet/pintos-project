@@ -1,4 +1,5 @@
 #include "frame.h" 
+#include "page.h" 
 
 static struct hash frame_hash;
 static struct lock frame_hash_lock;
@@ -22,37 +23,29 @@ void vm_frame_alloc_init ()
   lock_init (&frame_hash_lock);
 }
 
-void *vm_frame_alloc_multiple (enum palloc_flags flags, size_t page_cnt)
+void *vm_frame_alloc (enum palloc_flags flags)
 {
-  void *cpy, *pages = NULL;
-  return palloc_get_multiple (flags, page_cnt);
+  void *page = NULL;
 
   /* Must request allocation from the user pool, kernel memory is non-pageable */
   if (flags & PAL_USER)
-    pages = palloc_get_multiple (flags, page_cnt);
+    page = palloc_get_page (flags);
 
-  cpy = pages;
-  if (pages != NULL)
+  if (page != NULL)
     {
-      for (int i = 0; i < (int)page_cnt; i++)
-        {
-          if (!frame_hash_add (pages, flags))
-            PANIC ("Out of memory!");
-          cpy += PGSIZE;
-        }
+      bool added = frame_hash_add (page, flags);
+      if (!added)
+        PANIC ("Out of memory!");
     }
   else
     {
-      // Perform swap, panic for now
-      // PANIC ("No free frames left in memory!");
+      struct frame_entry * f = evict_and_get_frame();
+      ASSERT (f != NULL);
+      page = f->page;
     }
 
-  return pages;
-}
+  return page;
 
-void *vm_frame_alloc (enum palloc_flags flags)
-{
-  return vm_frame_alloc_multiple (flags, 1);
 }
 
 void vm_frame_free (void *page)
@@ -92,7 +85,22 @@ bool frame_hash_add (void *page, enum palloc_flags flags)
   return true;
 }
 
-void frame_evict (struct frame_entry frame UNUSED)
+struct frame_entry * evict_and_get_frame()
 {
+  //TODO LOCK
 
+  struct frame_entry *victim = select_frame_to_evict();
+  ASSERT (victim != NULL);
+
+  pt_suppl_page_out (&victim->owner->pt_suppl, victim->page);
+
+  //TODO SAVE FRAME
+
+
+  return NULL;
+}
+
+struct frame_entry * select_frame_to_evict(void)
+{
+  return NULL; //TODO
 }

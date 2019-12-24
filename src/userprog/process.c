@@ -20,6 +20,7 @@
 #include "threads/vaddr.h"
 #include "devices/timer.h"
 #include "vm/frame.h"
+#include "vm/page.h"
 
 static thread_func start_process NO_RETURN;
 static bool load (struct args_struct *file_name_args, void (**eip) (void), void **esp);
@@ -84,6 +85,9 @@ start_process (void *file_name_args)
   struct intr_frame if_;
   bool success;
   struct thread* parent_thread;
+  struct thread* current_thread = thread_current();
+
+  pt_suppl_init (&current_thread->pt_suppl);
 
   /* Initialize interrupt frame and load executable. */
   memset (&if_, 0, sizeof if_);
@@ -92,7 +96,7 @@ start_process (void *file_name_args)
   if_.eflags = FLAG_IF | FLAG_MBS;
   success = load ((struct args_struct *)file_name_args, &if_.eip, &if_.esp);
 
-  parent_thread = lookup_tid (thread_current ()->parent_tid);
+  parent_thread = lookup_tid (current_thread->parent_tid);
   if (parent_thread != NULL)
   {
     parent_thread->child_born_status = (success ? 1 : -1); 
@@ -188,6 +192,8 @@ process_exit (void)
       /* Automatically allows writes again. */
       file_close(cur->run_file); 
     }
+
+  pt_suppl_free (&cur->pt_suppl);
 
   /* Children don't need to wait on the semaphore after we exit. */
   if (!list_empty(children_list)) {
