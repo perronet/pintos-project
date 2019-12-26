@@ -7,7 +7,7 @@ static struct lock frame_hash_lock;
 unsigned find_frame (const struct hash_elem *e, void *aux UNUSED)
 {
   struct frame_entry *frame = hash_entry (e, struct frame_entry, elem);
-  return hash_bytes (frame->page, sizeof (frame->page));
+  return hash_bytes (&frame->page, sizeof (frame->page));
 }
 
 bool compare_frame (const struct hash_elem *e1, const struct hash_elem *e2, void *aux UNUSED)
