@@ -76,8 +76,7 @@ bool frame_hash_add (void *page, enum palloc_flags flags)
   lock_acquire (&frame_hash_lock);
 
   if (flags & PAL_USER){
-    struct hash_elem e = frame->elem;
-    hash_insert (&frame_hash, &e);
+    hash_insert (&frame_hash, &frame->elem);
   }
 
   lock_release (&frame_hash_lock);
