@@ -2,6 +2,7 @@
 #define _PAGE_H 
 
 #include "filesys/off_t.h"
+#include "threads/interrupt.h"
 
 
 #define NORMAL    0b00000

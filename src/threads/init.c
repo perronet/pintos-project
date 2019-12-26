@@ -37,9 +37,11 @@
 #include "filesys/filesys.h"
 #include "filesys/fsutil.h"
 #endif
-#include "vm/frame.c"
-#include "vm/swap.c"
-#include "vm/page.c"
+#ifdef VM
+#include "vm/frame.h"
+#include "vm/swap.h"
+#include "vm/page.h"
+#endif
 
 /* Page directory with kernel mappings only. */
 uint32_t *init_page_dir;
@@ -128,6 +130,9 @@ kernel_main (void)
   /* Initialize file system. */
   ide_init ();
   locate_block_devices ();
+  #ifdef VM
+  swap_init();
+  #endif
   filesys_init (format_filesys);
 #endif
 

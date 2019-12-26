@@ -14,6 +14,7 @@
 #include "threads/synch.h"
 #include "threads/vaddr.h"
 #include "lib/kernel/hash.h"
+#include "threads/thread.h"
 
 struct frame_entry
 {

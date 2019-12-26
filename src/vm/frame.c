@@ -1,5 +1,6 @@
 #include "frame.h" 
 #include "page.h" 
+#include "threads/malloc.h"
 
 static struct hash frame_hash;
 static struct lock frame_hash_lock;

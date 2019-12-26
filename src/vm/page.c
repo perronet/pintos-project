@@ -5,6 +5,7 @@
 #include "swap.h"
 #include "page.h"
 #include "threads/vaddr.h"
+#include "threads/thread.h"
 
 void pt_suppl_init (struct hash *table)
 {
