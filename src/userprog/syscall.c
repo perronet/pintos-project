@@ -23,6 +23,8 @@ static int write (int fd, const void *buffer, unsigned length);
 static void seek (int fd, unsigned position);
 static unsigned tell (int fd);
 static void close (int fd);
+static int mmap (int fd, void *page);
+static void munmap (int map_id);
 
 #define CHECK_PTR(esp) \
 {\
@@ -60,7 +62,7 @@ syscall_handler (struct intr_frame *f)
   int syscall_id = *(int *)esp;
   esp += sizeof(int);
 
-  int fd, status;
+  int fd, map_id, status;
   pid_t pid;
   void *buffer;
   const void *buffer_cnst;
@@ -140,10 +142,15 @@ syscall_handler (struct intr_frame *f)
 
     // Assignment 3 and 4
     case SYS_MMAP:
-    
+      fd = GET_PARAM(esp, int);
+      buffer = GET_PARAM(esp, void *);
+
+      f->eax = mmap (fd, buffer);
     break;
     case SYS_MUNMAP:
-    
+      map_id = GET_PARAM(esp, int);
+
+      munmap(map_id);
     break;
     case SYS_CHDIR:
     
@@ -246,4 +253,14 @@ static unsigned tell (int fd)
 static void close (int fd)
 {
   close_open_file (fd);
+}
+
+static int mmap (int fd, void *page)
+{
+  return memory_map_file (fd, page);
+}
+
+static void munmap (int map_id)
+{
+  memory_unmap_file (map_id);
 }

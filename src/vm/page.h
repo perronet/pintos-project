@@ -4,7 +4,6 @@
 #include "filesys/off_t.h"
 #include "threads/interrupt.h"
 
-
 #define NORMAL    0b00000
 #define MMF       0b00100
 #define LAZY      0b01000
@@ -13,21 +12,21 @@
 #define PRESENT   0b00001
 #define SWAPPED   0b00010
 
-#define IS_NORMAL(page) (page & NORMAL)
-#define IS_MMF(page)    (page & MMF)
-#define IS_LAZY(page)   (page & LAZY)
+#define IS_NORMAL(status) (status & NORMAL)
+#define IS_MMF(status)    (status & MMF)
+#define IS_LAZY(status)   (status & LAZY)
 
-#define IS_UNLOADED(page)  (page & UNLOADED)
-#define IS_PRESENT(page)   (page & PRESENT)
-#define IS_SWAPPED(page)   (page & SWAPPED)
+#define IS_UNLOADED(status)  (status & UNLOADED)
+#define IS_PRESENT(status)   (status & PRESENT)
+#define IS_SWAPPED(status)   (status & SWAPPED)
 
 enum pt_status
   {
-    //Normal page
-    PAGE_PRESENT  = NORMAL  | PRESENT,
-    PAGE_SWAPPED  = NORMAL  | SWAPPED,
+    //Normal status
+    status_PRESENT  = NORMAL  | PRESENT,
+    status_SWAPPED  = NORMAL  | SWAPPED,
 
-    //Memory mapped file page
+    //Memory mapped file status
     MMF_UNLOADED  = MMF     | UNLOADED,
     MMF_PRESENT   = MMF     | PRESENT,
     MMF_SWAPPED   = MMF     | SWAPPED,
@@ -41,6 +40,7 @@ enum pt_status
 struct pt_suppl_mmf
   {
   	struct file *file;
+    int map_id;
     off_t offset;
     uint32_t read_bytes;
   };
@@ -55,12 +55,13 @@ struct pt_suppl_entry
   	struct hash_elem elem;
   };
 
-
 void pt_suppl_init (struct hash *table);
 bool pt_suppl_handle_page_fault (void * vaddr, struct intr_frame *f);
+int pt_suppl_handle_mmap (struct file *f, void *start_page);
+void pt_suppl_handle_unmap (int map_id);
 struct pt_suppl_entry * pt_suppl_get (struct hash *table, void *page);
 bool pt_suppl_add (struct hash *table, struct pt_suppl_entry *entry);
-void pt_suppl_remove (struct hash *table, struct pt_suppl_entry *entry);
+void pt_suppl_destroy (struct pt_suppl_entry *entry);
 bool pt_suppl_add_mmf (struct file *file, off_t offset, 
                        uint8_t *page_addr, uint32_t read_bytes);
 void pt_suppl_flush_mmf (struct pt_suppl_entry *entry);

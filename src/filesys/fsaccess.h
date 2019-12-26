@@ -29,6 +29,8 @@ int read_open_file(int fd_num, void *buffer, unsigned length);
 int write_open_file (int fd_num, void *buffer, unsigned length);
 void seek_open_file (int fd_num, unsigned position);
 unsigned tell_open_file (int fd_num);
+int memory_map_file (int fd_num, void *start_page);
+void memory_unmap_file (int map_id);
 void close_open_file (int fd_num);
 void close_all_files(void);
 #endif

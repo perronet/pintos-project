@@ -25,6 +25,10 @@ static inline unsigned pg_ofs (const void *va) {
   return (uintptr_t) va & PGMASK;
 }
 
+static inline bool is_start_of_page (const void *va) {
+  return pg_ofs (va) != 0;
+}
+
 /* Virtual page number. */
 static inline uintptr_t pg_no (const void *va) {
   return (uintptr_t) va >> PGBITS;

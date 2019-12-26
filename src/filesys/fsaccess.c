@@ -5,6 +5,8 @@
 #include "filesys/file.h"
 #include "devices/input.h"
 #include "filesys/filesys.h"
+#include "threads/vaddr.h"
+#include "vm/page.h"
 
 #define FIRST_VALID_FILE_DESCRIPTOR 2;
 
@@ -203,6 +205,33 @@ tell_open_file (int fd_num)
   return result;
 }
 
+int 
+memory_map_file (int fd_num, void *start_page)
+{
+  struct file_descriptor *fd = get_file_descriptor (fd_num);
+  if (fd == NULL ||
+      start_page == 0 || 
+      !is_start_of_page(start_page)) 
+    return -1;
+
+  struct file *f = fd->open_file;
+  ASSERT (f != NULL);
+
+  //TODO CHECK THAT ADDRESS RANGE IS VALID
+  lock_acquire (&files_lock);
+  int map_id = pt_suppl_handle_mmap (f, start_page);
+  lock_release (&files_lock);
+  return map_id;
+}
+
+void 
+memory_unmap_file (int map_id)
+{
+  lock_acquire (&files_lock);
+  pt_suppl_handle_unmap (map_id);
+  lock_release (&files_lock);
+}
+
 void
 close_open_file (int fd_num)
 {
@@ -238,5 +267,4 @@ close_all_files()
     }
 
   lock_release (&files_lock);
-
 }

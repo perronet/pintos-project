@@ -7,6 +7,9 @@
 #include "threads/vaddr.h"
 #include "threads/thread.h"
 
+int last_map_id = 0;
+
+
 void pt_suppl_init (struct hash *table)
 {
   hash_init (table, pt_suppl_hash, pt_suppl_less, NULL);
@@ -35,10 +38,55 @@ bool pt_suppl_handle_page_fault (void * vaddr, struct intr_frame *f)
           return true;
         }
       else
-        {
           return false;  
-        }
     } 
+}
+
+int 
+pt_suppl_handle_mmap (struct file *f, void *start_page)
+{
+  off_t length = file_length (f);
+  if (length == 0)
+    return -1;
+
+  last_map_id ++;
+
+  void * page_addr = start_page; 
+  for(int offset = 0; offset < length; offset += PGSIZE)
+  {
+    int remaining = length - offset;
+    if (remaining > PGSIZE)
+      remaining = PGSIZE;
+    page_addr += PGSIZE;
+
+    pt_suppl_add_mmf(f, offset, page_addr, remaining);
+  }
+
+  return last_map_id;
+}
+
+void 
+pt_suppl_handle_unmap (int map_id)
+{
+  bool removed = false;
+  struct thread *current = thread_current();
+
+  while (!removed)
+    {
+      struct pt_suppl_entry entry;
+      struct pt_suppl_mmf mmf;
+      mmf.map_id = map_id;
+      entry.mmf = &mmf;
+      struct hash_elem *del_elem;
+      del_elem = hash_delete (&current->pt_suppl, &entry.elem);
+
+      struct pt_suppl_entry *deleted;
+      deleted = hash_entry (del_elem, struct pt_suppl_entry, elem);
+      if (pagedir_is_dirty (current->pagedir, deleted->vaddr))
+        pt_suppl_flush_mmf(deleted);
+
+      pt_suppl_destroy(deleted);
+    }
 }
 
 struct pt_suppl_entry * 
@@ -62,10 +110,9 @@ pt_suppl_add (struct hash *table, struct pt_suppl_entry *entry)
 }
 
 void 
-pt_suppl_remove (struct hash *table, struct pt_suppl_entry *entry)
+pt_suppl_destroy(struct pt_suppl_entry *entry)
 {
-  ASSERT (table != NULL && entry != NULL);
-  hash_delete (table, &entry->elem);
+  ASSERT (entry != NULL);
   
   if(entry->mmf != NULL)
     free (entry->mmf);
@@ -93,6 +140,7 @@ uint32_t read_bytes)
   entry->mmf = mmf;
   mmf->file = file;
   mmf->offset = offset;
+  mmf->map_id = last_map_id;
   mmf->read_bytes = read_bytes;
 
   bool success = pt_suppl_add (&thread_current ()->pt_suppl, entry);
@@ -219,8 +267,12 @@ pt_suppl_less (const struct hash_elem *ha,
         void *aux UNUSED)
 {
   struct pt_suppl_entry *a,*b;
+
   a = hash_entry (ha, struct pt_suppl_entry, elem);
   b = hash_entry (hb, struct pt_suppl_entry, elem);
-  
-  return a->vaddr < b->vaddr;
+
+  if(IS_MMF(a->status) && IS_MMF(b->status)) //hammered
+    return a->mmf->map_id < b->mmf->map_id;
+  else  
+    return a->vaddr < b->vaddr;
 }
