@@ -37,7 +37,7 @@ enum pt_status
     LAZY_SWAPPED  = LAZY    | SWAPPED,
   };
 
-struct pt_suppl_mmf
+struct pt_suppl_file_info
   {
   	struct file *file;
     int map_id;
@@ -50,7 +50,7 @@ struct pt_suppl_entry
   	void *vaddr;
   	enum pt_status status;
     size_t swap_slot;
-    struct pt_suppl_mmf *mmf;
+    struct pt_suppl_file_info *file_info;
 
   	struct hash_elem elem;
   };

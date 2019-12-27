@@ -74,9 +74,9 @@ pt_suppl_handle_unmap (int map_id)
   while (!removed)
     {
       struct pt_suppl_entry entry;
-      struct pt_suppl_mmf mmf;
+      struct pt_suppl_file_info mmf;
       mmf.map_id = map_id;
-      entry.mmf = &mmf;
+      entry.file_info = &mmf;
       struct hash_elem *del_elem;
       del_elem = hash_delete (&current->pt_suppl, &entry.elem);
 
@@ -114,8 +114,8 @@ pt_suppl_destroy(struct pt_suppl_entry *entry)
 {
   ASSERT (entry != NULL);
   
-  if(entry->mmf != NULL)
-    free (entry->mmf);
+  if(entry->file_info != NULL)
+    free (entry->file_info);
   free (entry);
 }
 
@@ -128,7 +128,7 @@ uint32_t read_bytes)
   if(entry == NULL)
     return false;
 
-  struct pt_suppl_mmf * mmf = calloc (1, sizeof (struct pt_suppl_mmf));
+  struct pt_suppl_file_info * mmf = calloc (1, sizeof (struct pt_suppl_file_info));
   if(mmf == NULL)
   {
     free(entry);
@@ -137,7 +137,7 @@ uint32_t read_bytes)
 
   entry->vaddr = page_addr;
   entry->status = MMF_UNLOADED;
-  entry->mmf = mmf;
+  entry->file_info = mmf;
   mmf->file = file;
   mmf->offset = offset;
   mmf->map_id = last_map_id;
@@ -154,7 +154,7 @@ void pt_suppl_flush_mmf (struct pt_suppl_entry *entry)
   if(entry->status == MMF_PRESENT || 
      entry->status == MMF_SWAPPED)
     {
-      struct pt_suppl_mmf *mmf = entry->mmf;
+      struct pt_suppl_file_info *mmf = entry->file_info;
       ASSERT (mmf != NULL);
 
       file_seek (mmf->file, mmf->offset);
@@ -184,7 +184,7 @@ bool pt_suppl_page_in (struct pt_suppl_entry *entry)
     }
   else if (IS_UNLOADED (entry->status))
     {
-      struct pt_suppl_mmf *mmf = entry->mmf;
+      struct pt_suppl_file_info *mmf = entry->file_info;
       ASSERT (mmf != NULL);
 
       bool read = false, pagedir = false;
@@ -240,7 +240,7 @@ pt_suppl_free_entry (struct hash_elem *he, void *aux UNUSED)
   if (entry->status == MMF_SWAPPED)
     {
       /*TODO clear swap slot*/
-      free (entry->mmf);
+      free (entry->file_info);
     }
   free (entry);
 }
@@ -272,7 +272,7 @@ pt_suppl_less (const struct hash_elem *ha,
   b = hash_entry (hb, struct pt_suppl_entry, elem);
 
   if(IS_MMF(a->status) && IS_MMF(b->status)) //hammered
-    return a->mmf->map_id < b->mmf->map_id;
+    return a->file_info->map_id < b->file_info->map_id;
   else  
     return a->vaddr < b->vaddr;
 }
