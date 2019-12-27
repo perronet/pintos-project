@@ -9,6 +9,10 @@
 
 int last_map_id = 0;
 
+static struct pt_suppl_entry *
+pt_suppl_setup_file_info (struct file *file, off_t offset, uint8_t *page_addr, 
+uint32_t read_bytes, uint32_t zero_bytes, bool writable, enum pt_status status);
+
 
 void pt_suppl_init (struct hash *table)
 {
@@ -123,30 +127,10 @@ bool
 pt_suppl_add_mmf (struct file *file, off_t offset, uint8_t *page_addr, 
 uint32_t read_bytes)
 {
-  struct pt_suppl_entry * entry = calloc (1, sizeof (struct pt_suppl_entry));
+  struct pt_suppl_entry * entry = pt_suppl_setup_file_info (file, offset, page_addr, 
+                                  read_bytes, 0, false, MMF_UNLOADED);
 
-  if(entry == NULL)
-    return false;
-
-  struct pt_suppl_file_info * mmf = calloc (1, sizeof (struct pt_suppl_file_info));
-  if(mmf == NULL)
-  {
-    free(entry);
-    return false;
-  }
-
-  entry->vaddr = page_addr;
-  entry->status = MMF_UNLOADED;
-  entry->file_info = mmf;
-  mmf->file = file;
-  mmf->offset = offset;
-  mmf->map_id = last_map_id;
-  mmf->read_bytes = read_bytes;
-
-  bool success = pt_suppl_add (&thread_current ()->pt_suppl, entry);
-  ASSERT (success);
-
-  return success;
+  return entry != NULL;
 }
 
 void pt_suppl_flush_mmf (struct pt_suppl_entry *entry)
@@ -161,6 +145,48 @@ void pt_suppl_flush_mmf (struct pt_suppl_entry *entry)
       file_write (mmf->file, entry->vaddr, mmf->read_bytes);
     }
 }
+
+bool
+pt_suppl_add_lazy (struct file *file, off_t offset, uint8_t *page_addr, 
+                uint32_t read_bytes, uint32_t zero_bytes, bool writable)
+{
+  struct pt_suppl_entry * entry = pt_suppl_setup_file_info (file, offset, page_addr, 
+                                  read_bytes, zero_bytes, writable, LAZY_UNLOADED);
+
+  return entry != NULL;
+}
+
+static struct pt_suppl_entry *
+pt_suppl_setup_file_info (struct file *file, off_t offset, uint8_t *page_addr, 
+      uint32_t read_bytes, uint32_t zero_bytes, bool writable, enum pt_status status)
+{
+  struct pt_suppl_entry * entry = calloc (1, sizeof (struct pt_suppl_entry));
+
+  if(entry == NULL)
+    return NULL;
+
+  struct pt_suppl_file_info * info = calloc (1, sizeof (struct pt_suppl_file_info));
+  if(info == NULL)
+  {
+    free(entry);
+    return NULL;
+  }
+
+  entry->vaddr = page_addr;
+  entry->status = status;
+  entry->file_info = info;
+  info->file = file;
+  info->offset = offset;
+  info->map_id = last_map_id;
+  info->read_bytes = read_bytes;
+  info->zero_bytes = zero_bytes;
+  info->writable = writable;
+
+  bool success = pt_suppl_add (&thread_current ()->pt_suppl, entry);
+  ASSERT (success);
+  return entry;
+}
+
 
 bool pt_suppl_page_in (struct pt_suppl_entry *entry)
 {
@@ -184,21 +210,21 @@ bool pt_suppl_page_in (struct pt_suppl_entry *entry)
     }
   else if (IS_UNLOADED (entry->status))
     {
-      struct pt_suppl_file_info *mmf = entry->file_info;
-      ASSERT (mmf != NULL);
+      struct pt_suppl_file_info *info = entry->file_info;
+      ASSERT (info != NULL);
 
       bool read = false, pagedir = false;
-      file_seek (mmf->file, mmf->offset);
-      read = file_read (mmf->file, page, mmf->read_bytes);
-      //TODO memset (page + mmf.read_bytes, 0, zero_bytes);
+      file_seek (info->file, info->offset);
+      read = file_read (info->file, page, info->read_bytes);
+      //TODO memset (page + info.read_bytes, 0, zero_bytes);
       if (read)
         pagedir = pagedir_set_page (thread_current ()->pagedir,
-                    entry->vaddr, page, true /*TODO is writable?*/);
+                    entry->vaddr, page, info->writable);
 
       bool success = read && pagedir;
       if(success)
         {
-          entry->status = MMF_PRESENT;
+          SET_PRESENCE(entry->status, PRESENT);
           return true;
         }
       else

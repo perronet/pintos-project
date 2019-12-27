@@ -12,9 +12,17 @@
 #define PRESENT   0b00001
 #define SWAPPED   0b00010
 
+//Type
+#define SET_TYPE(status, new_type) \
+{status = (status & 0b00011) | new_type;}
+
 #define IS_NORMAL(status) (status & NORMAL)
 #define IS_MMF(status)    (status & MMF)
 #define IS_LAZY(status)   (status & LAZY)
+
+//Presence 
+#define SET_PRESENCE(status, new_presence) \
+{status = (status & 0b11100) | new_presence;}
 
 #define IS_UNLOADED(status)  (status & UNLOADED)
 #define IS_PRESENT(status)   (status & PRESENT)
@@ -37,12 +45,16 @@ enum pt_status
     LAZY_SWAPPED  = LAZY    | SWAPPED,
   };
 
+/* Used both for lazy loading and mmf */
 struct pt_suppl_file_info
   {
   	struct file *file;
     int map_id;
     off_t offset;
     uint32_t read_bytes;
+
+    uint32_t zero_bytes;
+    bool writable;
   };
 
 struct pt_suppl_entry
@@ -64,6 +76,8 @@ bool pt_suppl_add (struct hash *table, struct pt_suppl_entry *entry);
 void pt_suppl_destroy (struct pt_suppl_entry *entry);
 bool pt_suppl_add_mmf (struct file *file, off_t offset, 
                        uint8_t *page_addr, uint32_t read_bytes);
+bool pt_suppl_add_lazy (struct file *file, off_t offset, uint8_t *page_addr, 
+                uint32_t read_bytes, uint32_t zero_bytes, bool writable);
 void pt_suppl_flush_mmf (struct pt_suppl_entry *entry);
 bool pt_suppl_page_in (struct pt_suppl_entry *entry);
 void pt_suppl_page_out (struct hash *table, void *page);
