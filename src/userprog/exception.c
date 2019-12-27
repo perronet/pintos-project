@@ -4,6 +4,7 @@
 #include "userprog/gdt.h"
 #include "threads/interrupt.h"
 #include "threads/thread.h"
+#include "threads/vaddr.h"
 #include "userprog/pagedir.h"
 #include "vm/page.h"
 
@@ -151,8 +152,7 @@ page_fault (struct intr_frame *f)
   user = (f->error_code & PF_U) != 0;
 
   struct thread *current = thread_current();
-  bool is_valid_fault = not_present && 
-                        is_valid_address_of_thread (current, fault_addr);
+  bool is_valid_fault = not_present && is_user_vaddr (fault_addr);
   if(is_valid_fault)
   {
     bool handled = pt_suppl_handle_page_fault (fault_addr, f);

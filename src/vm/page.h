@@ -12,21 +12,24 @@
 #define PRESENT   0b00001
 #define SWAPPED   0b00010
 
+#define PRESENCE_MASK 0b00011
+#define TYPE_MASK 0b11100
+
 //Type
 #define SET_TYPE(status, new_type) \
-{status = (status & 0b00011) | new_type;}
+{ status = (status & PRESENCE_MASK) | new_type; }
 
-#define IS_NORMAL(status) (status & NORMAL)
-#define IS_MMF(status)    (status & MMF)
-#define IS_LAZY(status)   (status & LAZY)
+#define IS_NORMAL(status) ((status & TYPE_MASK) == NORMAL)
+#define IS_MMF(status)    ((status & TYPE_MASK) == MMF)
+#define IS_LAZY(status)   ((status & TYPE_MASK) == LAZY)
 
 //Presence 
 #define SET_PRESENCE(status, new_presence) \
-{status = (status & 0b11100) | new_presence;}
+{ status = (status & TYPE_MASK) | new_presence; }
 
-#define IS_UNLOADED(status)  (status & UNLOADED)
-#define IS_PRESENT(status)   (status & PRESENT)
-#define IS_SWAPPED(status)   (status & SWAPPED)
+#define IS_UNLOADED(status)  ((status & PRESENCE_MASK) == UNLOADED)
+#define IS_PRESENT(status)   ((status & PRESENCE_MASK) == PRESENT)
+#define IS_SWAPPED(status)   ((status & PRESENCE_MASK) == SWAPPED)
 
 enum pt_status
   {
@@ -37,7 +40,7 @@ enum pt_status
     //Memory mapped file status
     MMF_UNLOADED  = MMF     | UNLOADED,
     MMF_PRESENT   = MMF     | PRESENT,
-    MMF_SWAPPED   = MMF     | SWAPPED,
+    MMF_SWAPPED   = MMF     | SWAPPED, //TODO MAYBE DELETE AND FLUSH, SETTING ULOADED?
 
     //Lazy loading page
     LAZY_UNLOADED = LAZY    | UNLOADED,

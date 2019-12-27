@@ -110,7 +110,8 @@ bool
 pt_suppl_add (struct hash *table, struct pt_suppl_entry *entry)
 {
   ASSERT (table != NULL && entry != NULL);
-  return hash_insert (table, &entry->elem) != NULL;
+  hash_insert (table, &entry->elem);
+  return true;
 }
 
 void 
@@ -170,7 +171,7 @@ pt_suppl_setup_file_info (struct file *file, off_t offset, uint8_t *page_addr,
   {
     free(entry);
     return NULL;
-  }
+  } 
 
   entry->vaddr = page_addr;
   entry->status = status;
