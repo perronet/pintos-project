@@ -4,16 +4,20 @@
 #include "filesys/off_t.h"
 #include "threads/interrupt.h"
 
-#define NORMAL    0b00000
-#define MMF       0b00100
-#define LAZY      0b01000
+#define NORMAL    0b0000
+#define MMF       0b0100
+#define LAZY      0b1000
 
-#define UNLOADED  0b00000
-#define PRESENT   0b00001
-#define SWAPPED   0b00010
+#define UNLOADED  0b0000
+#define PRESENT   0b0001
+#define SWAPPED   0b0010
 
-#define PRESENCE_MASK 0b00011
-#define TYPE_MASK 0b11100
+/* Starting from the right:
+  -2 bits are for the presence
+  -2 bits are for the type of page
+*/
+#define PRESENCE_MASK 0b0011
+#define TYPE_MASK     0b1100
 
 //Type
 #define SET_TYPE(status, new_type) \
