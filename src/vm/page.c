@@ -230,7 +230,6 @@ bool pt_suppl_page_in (struct pt_suppl_entry *entry)
         pagedir = pagedir_set_page (thread_current ()->pagedir,
                     entry->vaddr, page, info->writable);
 
-      if(success)
       if(pagedir)
         {
           SET_PRESENCE(entry->status, PRESENT);
