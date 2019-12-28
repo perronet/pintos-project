@@ -159,8 +159,10 @@ page_fault (struct intr_frame *f)
 
     if (handled)
     {
-      ASSERT (pagedir_get_page (current->pagedir, fault_addr));
-      return;
+      bool success = pagedir_get_page (current->pagedir, fault_addr);
+      if(!success)
+        thread_exit_with_status(-1);
+      else return;
     }
   }
 

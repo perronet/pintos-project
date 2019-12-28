@@ -216,14 +216,22 @@ bool pt_suppl_page_in (struct pt_suppl_entry *entry)
 
       bool read = false, pagedir = false;
       file_seek (info->file, info->offset);
-      read = file_read (info->file, page, info->read_bytes);
-      //TODO memset (page + info.read_bytes, 0, zero_bytes);
+      if(info->read_bytes > 0)
+      {
+        read = file_read (info->file, page, info->read_bytes);
+        memset (page + info->read_bytes, 0, info->zero_bytes);
+      }
+      else
+      {
+        read = true;
+        memset (page, 0, info->zero_bytes);
+      }
       if (read)
         pagedir = pagedir_set_page (thread_current ()->pagedir,
                     entry->vaddr, page, info->writable);
 
-      bool success = read && pagedir;
       if(success)
+      if(pagedir)
         {
           SET_PRESENCE(entry->status, PRESENT);
           return true;
