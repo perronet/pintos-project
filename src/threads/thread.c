@@ -16,6 +16,9 @@
 #include "userprog/process.h"
 #include "userprog/pagedir.h"
 #endif
+#ifdef VM
+#include "vm/page.h"
+#endif
 
 /* Random value for struct thread's `magic' member.
    Used to detect stack overflow.  See the big comment at the top
@@ -678,7 +681,17 @@ bool
 is_valid_address_of_thread(struct thread *t, const void *ptr)
 {
   if(ptr != NULL && is_user_vaddr (ptr))
-      return (pagedir_get_page (t->pagedir, ptr)) != NULL;
+  {
+    bool loaded = (pagedir_get_page (t->pagedir, ptr)) != NULL;
+    if (loaded)
+      return true;
+    else //Check if ptr is valid but still not loaded
+#ifdef VM
+      return pt_suppl_get_entry_by_addr(ptr) != NULL;
+#else
+    return false;
+#endif
+  }
   
   return false;
 }
