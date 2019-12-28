@@ -75,6 +75,7 @@ struct pt_suppl_entry
   };
 
 void pt_suppl_init (struct hash *table);
+struct pt_suppl_entry * pt_suppl_get_entry_by_addr(const void *vaddr);
 bool pt_suppl_handle_page_fault (void * vaddr, struct intr_frame *f);
 int pt_suppl_handle_mmap (struct file *f, void *start_page);
 void pt_suppl_handle_unmap (int map_id);

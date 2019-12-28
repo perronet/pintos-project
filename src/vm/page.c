@@ -13,20 +13,23 @@ static struct pt_suppl_entry *
 pt_suppl_setup_file_info (struct file *file, off_t offset, uint8_t *page_addr, 
 uint32_t read_bytes, uint32_t zero_bytes, bool writable, enum pt_status status);
 
-
 void pt_suppl_init (struct hash *table)
 {
   hash_init (table, pt_suppl_hash, pt_suppl_less, NULL);
+}
+
+struct pt_suppl_entry * pt_suppl_get_entry_by_addr(const void *vaddr)
+{ 
+  struct thread *current = thread_current();
+  void * page = pg_round_down (vaddr);
+  return pt_suppl_get (&current->pt_suppl, page);
 }
 
 bool pt_suppl_handle_page_fault (void * vaddr, struct intr_frame *f)
 {
   ASSERT (vaddr != NULL && vaddr < PHYS_BASE);
 
-  struct thread *current = thread_current();
-  void * page = pg_round_down (vaddr);
-  struct pt_suppl_entry * e = pt_suppl_get (&current->pt_suppl, page);
-
+  struct pt_suppl_entry *e = pt_suppl_get_entry_by_addr (vaddr);
   if (e != NULL)
     {
       pt_suppl_page_in (e);
