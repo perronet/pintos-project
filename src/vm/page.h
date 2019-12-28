@@ -4,6 +4,8 @@
 #include "filesys/off_t.h"
 #include "threads/interrupt.h"
 
+#define MAX_STACK (8 * (1<<20)); //8MB
+
 #define NORMAL    0b0000
 #define MMF       0b0100
 #define LAZY      0b1000

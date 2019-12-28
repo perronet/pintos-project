@@ -37,8 +37,10 @@ bool pt_suppl_handle_page_fault (void * vaddr, struct intr_frame *f)
     }
   else
     {
-      bool is_stack_growth = vaddr < f->esp; //TODO check of oneoff errors
-      //TODO check for downward limit (stack overflow)
+      void * page = pg_round_down (vaddr);
+      bool is_stack_growth = vaddr >= f->esp-32;
+      is_stack_growth &= PHYS_BASE - page <= MAX_STACK;
+
       if (is_stack_growth)
         {
           pt_suppl_grow_stack(vaddr);
