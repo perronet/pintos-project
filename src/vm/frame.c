@@ -1,7 +1,9 @@
 #include "frame.h" 
 #include "page.h" 
+#include "swap.h"
 #include "threads/malloc.h"
 #include "userprog/pagedir.h"
+#include "filesys/file.h"
 
 static struct hash frame_hash;
 static struct lock frame_hash_lock;
@@ -41,7 +43,7 @@ void *vm_frame_alloc (enum palloc_flags flags)
     }
   else
     {
-      struct frame_entry * f = evict_and_get_frame();
+      struct frame_entry *f = evict_and_get_frame();
       ASSERT (f != NULL);
       page = f->page;
     }
@@ -97,12 +99,10 @@ struct frame_entry * evict_and_get_frame()
     PANIC ("No frame to evict");
 
   /* Save old frame before modifying the frame entry */
-  if (!save_evicted_frame (victim))
-    PANIC ("Can't save evicted frame");
+  if (!page_out_evicted_frame (victim))
+    PANIC ("Can't page out evicted frame");
 
-  pt_suppl_page_out (&victim->owner->pt_suppl, victim->page);
   victim->owner = t;
-
   lock_release (&frame_hash_lock);
 
   return victim;
@@ -134,23 +134,39 @@ struct frame_entry * select_frame_to_evict()
   return f;
 }
 
-bool save_evicted_frame (struct frame_entry *f UNUSED)
+bool page_out_evicted_frame (struct frame_entry *f)
 {
+  struct pt_suppl_entry *pt_entry = pt_suppl_get (&f->owner->pt_suppl, f->page);
+  size_t swap_slot_id;
 
-  // struct pt_suppl_entry * pt_entry = pt_suppl_get ();
+  if (pt_entry == NULL)
+  {
+    pt_entry = calloc(1, sizeof (struct pt_suppl_entry*));
+    pt_entry->vaddr = f->page;
+    SET_PRESENCE (pt_entry->status, SWAPPED);
 
-  // if (MMF_PRESENT && pagedir_is_dirty (f->owner->pagedir, f->page))
-  // {
+    if (!pt_suppl_add (&f->owner->pt_suppl, pt_entry))
+      return false;
+  }
 
-  // }
-  // else if 
-  // {
+  if (IS_MMF (pt_entry->status) && pagedir_is_dirty (f->owner->pagedir, pt_entry->vaddr))
+  {
+    /* Write back to file */
+    file_write_at (pt_entry->file_info->file, pt_entry->vaddr, 
+      pt_entry->file_info->read_bytes, pt_entry->file_info->offset);
+  }
+  else if (!IS_MMF (pt_entry->status) && pagedir_is_dirty (f->owner->pagedir, pt_entry->vaddr))
+  {
+    /* Write to swap */
+    swap_slot_id = swap_out (pt_entry->vaddr);
+    if ((int)swap_slot_id == SWAP_ERROR)
+      return false;
 
-  // }
-  // else
-  // {
+    SET_PRESENCE (pt_entry->status, SWAPPED);
+    pt_entry->swap_slot = swap_slot_id;
+  }
 
-  // }
+  pagedir_clear_page (f->owner->pagedir, pt_entry->vaddr);
 
   return true;
 }

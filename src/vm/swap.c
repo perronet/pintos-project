@@ -56,7 +56,7 @@ swap_out (const void* page)
 			return slot;	
 		}
 	else
-		return 0;
+		return SWAP_ERROR;
 }
 
 void swap_free(size_t slot)

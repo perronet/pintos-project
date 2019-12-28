@@ -19,4 +19,7 @@ cd ..; make; cd build; make check
 
 NORMAL RUN WITH FILESYSTEM READY
 make; pintos -q run 'echo x'
- 
+
+TO TEST SWAP
+--swap-size=n
+and use a very small ram

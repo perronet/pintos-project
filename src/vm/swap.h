@@ -1,6 +1,8 @@
 #ifndef _SWAP_H
 #define _SWAP_H 
 
+#define SWAP_ERROR -1
+
 void swap_init (void);
 
 void swap_in (size_t slot, void* page);
