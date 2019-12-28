@@ -41,7 +41,6 @@ process_execute (const char *file_name)
   /* Make a copy of FILE_NAME.
      Otherwise there's a race between the caller and load(). */
   name_args = palloc_get_page (0);
-  // name_args = vm_frame_alloc (PAL_USER);
   if (name_args == NULL)
     return TID_ERROR;
 

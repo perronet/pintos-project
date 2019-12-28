@@ -1,6 +1,7 @@
 #include "frame.h" 
 #include "page.h" 
 #include "threads/malloc.h"
+#include "userprog/pagedir.h"
 
 static struct hash frame_hash;
 static struct lock frame_hash_lock;
@@ -87,20 +88,69 @@ bool frame_hash_add (void *page, enum palloc_flags flags)
 
 struct frame_entry * evict_and_get_frame()
 {
-  //TODO LOCK
+  struct thread *t = thread_current ();
+
+  lock_acquire (&frame_hash_lock);
 
   struct frame_entry *victim = select_frame_to_evict();
-  ASSERT (victim != NULL);
+  if (victim == NULL)
+    PANIC ("No frame to evict");
+
+  /* Save old frame before modifying the frame entry */
+  if (!save_evicted_frame (victim))
+    PANIC ("Can't save evicted frame");
 
   pt_suppl_page_out (&victim->owner->pt_suppl, victim->page);
+  victim->owner = t;
 
-  //TODO SAVE FRAME
+  lock_release (&frame_hash_lock);
 
-
-  return NULL;
+  return victim;
 }
 
-struct frame_entry * select_frame_to_evict(void)
+struct frame_entry * select_frame_to_evict()
 {
-  return NULL; //TODO
+  struct hash_iterator i;
+  struct frame_entry *f = NULL;
+  bool found = false;
+
+  while (!found)
+  {
+    hash_first (&i, &frame_hash);
+    while (hash_next (&i))
+    {
+      f = hash_entry (hash_cur (&i), struct frame_entry, elem);
+      if (pagedir_is_accessed (f->owner->pagedir, f->page))
+      {
+        /* Give second chance */
+        pagedir_set_accessed (f->owner->pagedir, f->page, false);
+      }
+      else
+      {
+        found = true;
+      }
+    }
+  }
+  return f;
+}
+
+bool save_evicted_frame (struct frame_entry *f UNUSED)
+{
+
+  // struct pt_suppl_entry * pt_entry = pt_suppl_get ();
+
+  // if (MMF_PRESENT && pagedir_is_dirty (f->owner->pagedir, f->page))
+  // {
+
+  // }
+  // else if 
+  // {
+
+  // }
+  // else
+  // {
+
+  // }
+
+  return true;
 }
