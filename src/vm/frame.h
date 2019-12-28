@@ -32,6 +32,7 @@ void *vm_frame_alloc (enum palloc_flags flags);
 void vm_frame_free (void *page);
 bool frame_hash_add (void *page, enum palloc_flags flags);
 void frame_hash_remove (struct list_elem *e);
+bool save_evicted_frame (struct frame_entry *f);
 struct frame_entry * evict_and_get_frame(void); 
 struct frame_entry * select_frame_to_evict(void); 
 
