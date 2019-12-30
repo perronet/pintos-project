@@ -209,19 +209,15 @@ int
 memory_map_file (int fd_num, void *start_page)
 {
   struct file_descriptor *fd = get_file_descriptor (fd_num);
-  struct thread *curr = thread_current ();
 
-  if (fd == NULL || start_page == 0 || !is_start_of_page (start_page)){
-    printf("ERROR 1\n");
+  if (fd == NULL || fd_num == 0 || fd_num == 1 || 
+    start_page == 0 || !is_start_of_page (start_page)){
+    printf("ERROR 1\n"); //TODO remove me
     return -1;
   }
 
   struct file *f = fd->open_file;
   ASSERT (f != NULL);
-  // if (!is_valid_address_range_of_thread (curr, start_page, start_page + filelength_open_file (fd->fd_num))){
-  //   printf("ERROR 2\n");
-  //   return -1;
-  // }
 
   lock_acquire (&files_lock);
   int map_id = pt_suppl_handle_mmap (f, start_page);

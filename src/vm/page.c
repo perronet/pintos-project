@@ -54,7 +54,9 @@ bool pt_suppl_handle_page_fault (void * vaddr, struct intr_frame *f)
 int 
 pt_suppl_handle_mmap (struct file *f, void *start_page)
 {
+  struct thread *curr = thread_current ();
   off_t length = file_length (f);
+  int remaining;
   if (length == 0)
     return -1;
 
@@ -63,12 +65,20 @@ pt_suppl_handle_mmap (struct file *f, void *start_page)
   void * page_addr = start_page; 
   for(int offset = 0; offset < length; offset += PGSIZE)
   {
-    int remaining = length - offset;
-    if (remaining > PGSIZE)
-      remaining = PGSIZE;
-    page_addr += PGSIZE;
+    /* No page should be present */
+    if (pt_suppl_get (&curr->pt_suppl, page_addr + offset) || 
+      pagedir_get_page (curr->pagedir, page_addr + offset))
+    {
+      printf("ERROR 2\n"); //TODO remove me
+      return -1;
+    }
 
+    remaining = length - offset;
+    if (remaining >= PGSIZE)
+      remaining = PGSIZE;
     pt_suppl_add_mmf(f, offset, page_addr, remaining);
+
+    page_addr += PGSIZE;
   }
 
   return last_map_id;
@@ -78,23 +88,32 @@ void
 pt_suppl_handle_unmap (int map_id)
 {
   bool removed = false;
-  struct thread *current = thread_current();
+  struct pt_suppl_entry entry;
+  struct pt_suppl_file_info mmf;
+  struct hash_elem *del_elem;
+  struct pt_suppl_entry *deleted;
+  struct thread *curr = thread_current();
 
   while (!removed)
     {
-      struct pt_suppl_entry entry;
-      struct pt_suppl_file_info mmf;
       mmf.map_id = map_id;
       entry.file_info = &mmf;
-      struct hash_elem *del_elem;
-      del_elem = hash_delete (&current->pt_suppl, &entry.elem);
+      // TODO
+      // I'm assuming that this finds a page with that map id at every iteration, re-check this
+      del_elem = hash_delete (&curr->pt_suppl, &entry.elem);
 
-      struct pt_suppl_entry *deleted;
-      deleted = hash_entry (del_elem, struct pt_suppl_entry, elem);
-      if (pagedir_is_dirty (current->pagedir, deleted->vaddr))
-        pt_suppl_flush_mmf(deleted);
+      if (del_elem != NULL)
+      {
+        deleted = hash_entry (del_elem, struct pt_suppl_entry, elem);
+        if (pagedir_is_dirty (curr->pagedir, deleted->vaddr))
+          pt_suppl_flush_mmf(deleted);
 
-      pt_suppl_destroy(deleted);
+        pt_suppl_destroy(deleted);
+      }
+      else
+      {
+        removed = true;
+      }
     }
 }
 
@@ -134,7 +153,7 @@ pt_suppl_add_mmf (struct file *file, off_t offset, uint8_t *page_addr,
 uint32_t read_bytes)
 {
   struct pt_suppl_entry * entry = pt_suppl_setup_file_info (file, offset, page_addr, 
-                                  read_bytes, 0, false, MMF_UNLOADED);
+                                  read_bytes, PGSIZE - read_bytes, true, MMF_UNLOADED);
 
   return entry != NULL;
 }
