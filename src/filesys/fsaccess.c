@@ -206,20 +206,25 @@ tell_open_file (int fd_num)
 }
 
 int 
-memory_map_file (int fd_num, void *start_page)
+memory_map_file (int fd_num, void *addr)
 {
   struct file_descriptor *fd = get_file_descriptor (fd_num);
-  if (fd == NULL ||
-      start_page == 0 || 
-      !is_start_of_page(start_page)) 
+  struct thread *curr = thread_current ();
+
+  if (fd == NULL || addr == 0 || !is_start_of_page (addr)){
+    printf("ERROR 1\n");
     return -1;
+  }
 
   struct file *f = fd->open_file;
   ASSERT (f != NULL);
+  // if (!is_valid_address_range_of_thread (curr, addr, addr + filelength_open_file (fd->fd_num))){
+  //   printf("ERROR 2\n");
+  //   return -1;
+  // }
 
-  //TODO CHECK THAT ADDRESS RANGE IS VALID
   lock_acquire (&files_lock);
-  int map_id = pt_suppl_handle_mmap (f, start_page);
+  int map_id = pt_suppl_handle_mmap (f, addr);
   lock_release (&files_lock);
   return map_id;
 }

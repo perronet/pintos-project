@@ -26,7 +26,7 @@ static inline unsigned pg_ofs (const void *va) {
 }
 
 static inline bool is_start_of_page (const void *va) {
-  return pg_ofs (va) != 0;
+  return pg_ofs (va) == 0;
 }
 
 /* Virtual page number. */

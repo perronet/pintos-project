@@ -8,7 +8,6 @@
 #include "userprog/process.h"
 #include "devices/shutdown.h"
 
-//TODO move these to syscall.h
 static void syscall_handler (struct intr_frame *);
 static void halt (void);
 static void exit (int status);
