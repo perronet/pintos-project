@@ -149,22 +149,26 @@ bool page_out_evicted_frame (struct frame_entry *f)
       return false;
   }
 
-  if (IS_MMF (pt_entry->status) && pagedir_is_dirty (f->owner->pagedir, pt_entry->vaddr))
+  if(pagedir_is_dirty (f->owner->pagedir, pt_entry->vaddr))
   {
-    /* Write back to file */
-    file_write_at (pt_entry->file_info->file, pt_entry->vaddr, 
-      pt_entry->file_info->read_bytes, pt_entry->file_info->offset);
-  }
-  else if (!IS_MMF (pt_entry->status) && pagedir_is_dirty (f->owner->pagedir, pt_entry->vaddr))
-  {
-    /* Write to swap */
-    swap_slot_id = swap_out (pt_entry->vaddr);
-    if ((int)swap_slot_id == SWAP_ERROR)
-      return false;
+    if (IS_MMF (pt_entry->status))
+    {
+      /* Write back to file */
+      file_write_at (pt_entry->file_info->file, pt_entry->vaddr, 
+        pt_entry->file_info->read_bytes, pt_entry->file_info->offset);
+    }
+    else 
+    {
+      /* Write to swap */
+      swap_slot_id = swap_out (pt_entry->vaddr);
+      if ((int)swap_slot_id == SWAP_ERROR)
+        return false;
 
-    SET_PRESENCE (pt_entry->status, SWAPPED);
-    pt_entry->swap_slot = swap_slot_id;
+      SET_PRESENCE (pt_entry->status, SWAPPED);
+      pt_entry->swap_slot = swap_slot_id;
+    }
   }
+
 
   pagedir_clear_page (f->owner->pagedir, pt_entry->vaddr);
 
