@@ -32,5 +32,6 @@ unsigned tell_open_file (int fd_num);
 int memory_map_file (int fd_num, void *start_page);
 void memory_unmap_file (int map_id);
 void close_open_file (int fd_num);
+void close_open_file_direct (struct file *file);
 void close_all_files(void);
 #endif

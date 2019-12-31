@@ -219,7 +219,8 @@ memory_map_file (int fd_num, void *start_page)
   ASSERT (f != NULL);
 
   lock_acquire (&files_lock);
-  int map_id = pt_suppl_handle_mmap (f, start_page);
+  struct file *rf = file_reopen(f);
+  int map_id = pt_suppl_handle_mmap (rf, start_page);
   lock_release (&files_lock);
   return map_id;
 }
@@ -243,6 +244,15 @@ close_open_file (int fd_num)
     list_remove (&fd->elem);      
     free(fd);
   }
+  lock_release (&files_lock);
+}
+
+/* Closes a file that does not have a file descriptor. */
+void 
+close_open_file_direct (struct file *file)
+{
+  lock_acquire (&files_lock); 
+  file_close(file);
   lock_release (&files_lock);
 }
 

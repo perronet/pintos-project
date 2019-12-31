@@ -6,6 +6,7 @@
 #include "page.h"
 #include "threads/vaddr.h"
 #include "threads/thread.h"
+#include "filesys/fsaccess.h"
 
 int last_map_id = 0;
 
@@ -107,6 +108,8 @@ pt_suppl_handle_unmap (int map_id)
         if (pagedir_is_dirty (curr->pagedir, deleted->vaddr))
           pt_suppl_flush_mmf(deleted);
 
+        if(deleted->file_info)
+          close_open_file_direct (deleted->file_info->file);
         pt_suppl_destroy(deleted);
       }
       else
