@@ -212,7 +212,6 @@ memory_map_file (int fd_num, void *start_page)
 
   if (fd == NULL || fd_num == 0 || fd_num == 1 || 
     start_page == 0 || !is_start_of_page (start_page)){
-    // printf("ERROR 1\n"); //TODO remove me
     return -1;
   }
 

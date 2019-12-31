@@ -330,7 +330,13 @@ pt_suppl_less (const struct hash_elem *ha,
   b = hash_entry (hb, struct pt_suppl_entry, elem);
 
   if(IS_MMF(a->status) && IS_MMF(b->status)) //hammered
-    return a->file_info->map_id < b->file_info->map_id;
+  {
+    bool eq_map_id = a->file_info->map_id == b->file_info->map_id;
+    if (eq_map_id)
+      return a->file_info->offset < b->file_info->offset;
+    else
+      return a->file_info->map_id < b->file_info->map_id;
+  }
   else  
     return a->vaddr < b->vaddr;
 }
