@@ -69,7 +69,7 @@ pt_suppl_handle_mmap (struct file *f, void *start_page)
     if (pt_suppl_get (&curr->pt_suppl, page_addr + offset) || 
       pagedir_get_page (curr->pagedir, page_addr + offset))
     {
-      printf("ERROR 2\n"); //TODO remove me
+      // printf("ERROR 2\n"); //TODO remove me
       return -1;
     }
 

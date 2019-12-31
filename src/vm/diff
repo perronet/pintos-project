@@ -1,0 +1,35 @@
+80c80
+< FAIL tests/vm/mmap-read
+---
+> pass tests/vm/mmap-read
+82c82
+< FAIL tests/vm/mmap-unmap
+---
+> pass tests/vm/mmap-unmap
+84c84
+< FAIL tests/vm/mmap-twice
+---
+> pass tests/vm/mmap-twice
+88c88
+< pass tests/vm/mmap-bad-fd
+---
+> FAIL tests/vm/mmap-bad-fd
+90c90
+< FAIL tests/vm/mmap-inherit
+---
+> pass tests/vm/mmap-inherit
+92,95c92,95
+< pass tests/vm/mmap-null
+< pass tests/vm/mmap-over-code
+< pass tests/vm/mmap-over-data
+< pass tests/vm/mmap-over-stk
+---
+> FAIL tests/vm/mmap-null
+> FAIL tests/vm/mmap-over-code
+> FAIL tests/vm/mmap-over-data
+> FAIL tests/vm/mmap-over-stk
+111c111
+< 21 of 110 tests failed. 
+---
+> 22 of 110 tests failed.
+\ No newline at end of file
