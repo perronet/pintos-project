@@ -32,8 +32,7 @@ bool pt_suppl_handle_page_fault (void * vaddr, struct intr_frame *f)
   struct pt_suppl_entry *e = pt_suppl_get_entry_by_addr (vaddr);
   if (e != NULL)
     {
-      pt_suppl_page_in (e);
-      return true;
+      return pt_suppl_page_in (e);
     }
   else
     {
@@ -329,14 +328,5 @@ pt_suppl_less (const struct hash_elem *ha,
   a = hash_entry (ha, struct pt_suppl_entry, elem);
   b = hash_entry (hb, struct pt_suppl_entry, elem);
 
-  if(IS_MMF(a->status) && IS_MMF(b->status)) //hammered
-  {
-    bool eq_map_id = a->file_info->map_id == b->file_info->map_id;
-    if (eq_map_id)
-      return a->file_info->offset < b->file_info->offset;
-    else
-      return a->file_info->map_id < b->file_info->map_id;
-  }
-  else  
-    return a->vaddr < b->vaddr;
+  return a->vaddr < b->vaddr;
 }
