@@ -166,6 +166,7 @@ bool page_out_evicted_frame (struct frame_entry *f)
         return false;
 
       SET_PRESENCE (pt_entry->status, SWAPPED);
+      vm_frame_free (f->page);
       pt_entry->swap_slot = swap_slot_id;
     }
   }

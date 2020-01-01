@@ -257,8 +257,9 @@ bool pt_suppl_page_in (struct pt_suppl_entry *entry)
 
   if (IS_SWAPPED (entry->status))
     {
+      bool is_writable = entry->file_info == NULL || entry->file_info->writable;
       bool pagedir = pagedir_set_page (thread_current ()->pagedir,
-                    entry->vaddr, page, true /*TODO is writable?*/);
+                    entry->vaddr, page, is_writable);
       if (!pagedir)
       {
         vm_frame_free (page);
