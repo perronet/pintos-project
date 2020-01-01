@@ -77,6 +77,7 @@ bool frame_hash_add (void *page, enum palloc_flags flags)
     return false;
 
   frame->page = page;
+  frame->owner = thread_current();
   lock_acquire (&frame_hash_lock);
 
   if (flags & PAL_USER){
