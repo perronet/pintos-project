@@ -678,16 +678,25 @@ allocate_tid (void)
 /* Checks whether the given pointer points to a valid address of
    the given thread */
 bool 
-is_valid_address_of_thread(struct thread *t, const void *ptr)
+is_valid_address_of_thread(struct thread *t, const void *ptr, bool wants_to_write)
 {
   if(ptr != NULL && is_user_vaddr (ptr))
   {
     bool loaded = (pagedir_get_page (t->pagedir, ptr)) != NULL;
     if (loaded)
-      return true;
+      if(wants_to_write)
+        return pagedir_is_writable (t->pagedir, ptr);
+      else
+        return true;
     else //Check if ptr is valid but still not loaded
 #ifdef VM
-      return pt_suppl_get_entry_by_addr(ptr) != NULL;
+      {
+        struct pt_suppl_entry *entry = pt_suppl_get_entry_by_addr(ptr);
+        if(wants_to_write)
+          return entry->file_info == NULL || entry->file_info->writable;
+        else
+          return entry != NULL;
+      }
 #else
     return false;
 #endif
@@ -700,7 +709,7 @@ is_valid_address_of_thread(struct thread *t, const void *ptr)
    given thread, boundaries included. It is sufficient to perform 
    a check with PGSIZE step. */
 bool 
-is_valid_address_range_of_thread(struct thread *t, void *begin, void *end)
+is_valid_address_range_of_thread(struct thread *t, void *begin, void *end, bool wants_to_write)
 {
   // Trivially wrong range checks
   if(begin == NULL || end == NULL || begin > end)
@@ -709,14 +718,14 @@ is_valid_address_range_of_thread(struct thread *t, void *begin, void *end)
   // Check from begin every PGSIZE
   while(begin < end)
   {
-    if(!is_valid_address_of_thread (t, begin))
+    if(!is_valid_address_of_thread (t, begin, wants_to_write))
       return false;
 
     begin += PGSIZE;
   }
   
   //Check last element
-  return is_valid_address_of_thread (t, end);
+  return is_valid_address_of_thread (t, end, wants_to_write);
 } 
 
 struct thread* 

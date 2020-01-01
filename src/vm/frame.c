@@ -108,6 +108,7 @@ struct frame_entry * evict_and_get_frame()
   return victim;
 }
 
+/* Call only with lock acquired */
 struct frame_entry * select_frame_to_evict()
 {
   struct hash_iterator i;

@@ -24,7 +24,7 @@ bool
 create_file(const char *file, unsigned length)
 {
   bool result = false;
-  if (is_valid_address_of_thread (thread_current (), file))
+  if (is_valid_address_of_thread (thread_current (), file, false))
     {
       lock_acquire (&files_lock);
       result = filesys_create(file, length);
@@ -38,7 +38,7 @@ bool
 remove_file(const char *file)
 {
   bool result = false;
-  if (is_valid_address_of_thread (thread_current (), file))
+  if (is_valid_address_of_thread (thread_current (), file, false))
     {    
       lock_acquire (&files_lock);
       result = filesys_remove(file);
@@ -151,7 +151,7 @@ write_open_file (int fd_num, void *buffer, unsigned length)
   int result = 0;
 
   struct thread * current = thread_current ();
-  if (!is_valid_address_range_of_thread (current, buffer, buffer + length))
+  if (!is_valid_address_range_of_thread (current, buffer, buffer + length, false))
     result = -1;
   
   if (fd_num == STDIN_FILENO)

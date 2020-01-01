@@ -25,21 +25,21 @@ static void close (int fd);
 static int mmap (int fd, void *page);
 static void munmap (int map_id);
 
-#define CHECK_PTR(esp) \
+#define CHECK_PTR(esp, wants_to_write) \
 {\
-  if (!is_valid_address_of_thread (thread_current (), esp))\
+  if (!is_valid_address_of_thread (thread_current (), esp, wants_to_write))\
     exit (-1);\
 }
 
-#define CHECK_PTR_RANGE(start, end) \
+#define CHECK_PTR_RANGE(start, end, wants_to_write) \
 {\
-  if (!is_valid_address_range_of_thread (thread_current (), start, end))\
+  if (!is_valid_address_range_of_thread (thread_current (), start, end, wants_to_write))\
     exit(-1);\
 }
 
 #define GET_PARAM(esp,type)\
 ({\
-    CHECK_PTR(esp);\
+    CHECK_PTR(esp, false);\
     type ret = *(type*)esp;\
     esp += sizeof(type*);\
     ret;\
@@ -55,7 +55,7 @@ syscall_init (void)
 static void
 syscall_handler (struct intr_frame *f) 
 {
-  CHECK_PTR(f->esp);
+  CHECK_PTR(f->esp, false);
   
   void *esp = f->esp;
   int syscall_id = *(int *)esp;
@@ -181,7 +181,7 @@ static void exit (int status)
 
 static pid_t exec (const char *file)
 {
-  CHECK_PTR(file);
+  CHECK_PTR(file, false);
 
   struct thread *cur = thread_current ();
   cur->child_born_status = 0;
@@ -202,19 +202,19 @@ static int wait (pid_t pid)
 
 static bool create (const char *file, unsigned initial_size)
 {
-  CHECK_PTR(file);
+  CHECK_PTR(file, false);
   return create_file(file, initial_size);
 }
 
 static bool remove (const char *file)
 {
-  CHECK_PTR(file);
+  CHECK_PTR(file, false);
   return remove_file(file);
 }
 
 static int open (const char *file)
 {
-  CHECK_PTR(file);
+  CHECK_PTR(file, false);
   return open_file(file);
 }
 
@@ -225,7 +225,7 @@ static int filesize (int fd)
 
 static int read (int fd, void *buffer, unsigned length)
 {
-  CHECK_PTR_RANGE(buffer, buffer + length);
+  CHECK_PTR_RANGE(buffer, buffer + length, true);
   return read_open_file(fd, buffer, length);
 }
 
@@ -235,7 +235,7 @@ static int read (int fd, void *buffer, unsigned length)
 static int write (int fd, const void *buffer, unsigned length)
 {
   void *buf = (void *)buffer;
-  CHECK_PTR_RANGE(buf, buf + length);
+  CHECK_PTR_RANGE(buf, buf + length, false);
   return write_open_file (fd, buf, length);
 }
 
