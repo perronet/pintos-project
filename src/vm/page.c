@@ -191,6 +191,8 @@ uint32_t read_bytes)
   struct pt_suppl_entry * entry = pt_suppl_setup_file_info (file, offset, page_addr, 
                                   read_bytes, PGSIZE - read_bytes, true, MMF_UNLOADED);
 
+  bool success = pt_suppl_add (&thread_current ()->pt_suppl, entry);
+  ASSERT (success);
   return entry != NULL;
 }
 
@@ -214,6 +216,8 @@ pt_suppl_add_lazy (struct file *file, off_t offset, uint8_t *page_addr,
   struct pt_suppl_entry * entry = pt_suppl_setup_file_info (file, offset, page_addr, 
                                   read_bytes, zero_bytes, writable, LAZY_UNLOADED);
 
+  bool success = pt_suppl_add (&thread_current ()->pt_suppl, entry);
+  ASSERT (success);
   return entry != NULL;
 }
 
@@ -244,15 +248,12 @@ pt_suppl_setup_file_info (struct file *file, off_t offset, uint8_t *page_addr,
   info->zero_bytes = zero_bytes;
   info->writable = writable;
 
-  bool success = pt_suppl_add (&thread_current ()->pt_suppl, entry);
-  ASSERT (success);
   return entry;
 }
 
-
 bool pt_suppl_page_in (struct pt_suppl_entry *entry)
 {
-  uint8_t *page = vm_frame_alloc (PAL_USER);
+  uint8_t *page = vm_frame_alloc (PAL_USER, entry->vaddr);
   if (page == NULL) return false;
 
   if (IS_SWAPPED (entry->status))
@@ -260,6 +261,7 @@ bool pt_suppl_page_in (struct pt_suppl_entry *entry)
       bool is_writable = entry->file_info == NULL || entry->file_info->writable;
       bool pagedir = pagedir_set_page (thread_current ()->pagedir,
                     entry->vaddr, page, is_writable);
+
       if (!pagedir)
       {
         vm_frame_free (page);
@@ -268,8 +270,8 @@ bool pt_suppl_page_in (struct pt_suppl_entry *entry)
 
       swap_in (entry->swap_slot, entry->vaddr);
 
-      //TODO DELETE FROM pt_suppl IF NOT MMF? 
-      entry->status = entry->status == SWAPPED ? PRESENT : MMF_PRESENT;
+      SET_PRESENCE(entry->status, PRESENT);
+      //TODO DELETE FROM pt_suppl IF NOT MMF?
     }
   else if (IS_UNLOADED (entry->status))
     {
@@ -295,6 +297,7 @@ bool pt_suppl_page_in (struct pt_suppl_entry *entry)
       if(pagedir)
         {
           SET_PRESENCE(entry->status, PRESENT);
+          //TODO remove from pt_suppl? 
           return true;
         }
       else
@@ -313,11 +316,10 @@ pt_suppl_page_out (struct hash *table UNUSED, void *page UNUSED)
   //TODO
 }
 
-
 void
 pt_suppl_grow_stack (void *top)
 {
-  void *page = vm_frame_alloc(PAL_USER | PAL_ZERO);
+  void *page = vm_frame_alloc(PAL_USER | PAL_ZERO, pg_round_down (top));
   if (page != NULL)
   {
     bool success = pagedir_set_page 

@@ -523,11 +523,11 @@ setup_stack (void **esp, char *file_name_args)
 
   uint8_t *kpage;
   bool success = false;
-
-  kpage = vm_frame_alloc (PAL_USER | PAL_ZERO);
+  uint8_t * begin = ((uint8_t *) PHYS_BASE) - PGSIZE;
+  kpage = vm_frame_alloc (PAL_USER | PAL_ZERO, begin);
   if (kpage != NULL) 
     {
-      success = install_page (((uint8_t *) PHYS_BASE) - PGSIZE, kpage, true);
+      success = install_page (begin, kpage, true);
       if (success)
         *esp = PHYS_BASE;
       else 

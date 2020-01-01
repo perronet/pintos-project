@@ -27,7 +27,7 @@ void vm_frame_alloc_init ()
   lock_init (&frame_hash_lock);
 }
 
-void *vm_frame_alloc (enum palloc_flags flags)
+void *vm_frame_alloc (enum palloc_flags flags, void *thread_vaddr)
 {
   void *page = NULL;
 
@@ -37,7 +37,7 @@ void *vm_frame_alloc (enum palloc_flags flags)
 
   if (page != NULL)
     {
-      bool added = frame_hash_add (page, flags);
+      bool added = frame_hash_add (page, flags, thread_vaddr);
       if (!added)
         PANIC ("Out of memory!");
     }
@@ -45,11 +45,11 @@ void *vm_frame_alloc (enum palloc_flags flags)
     {
       struct frame_entry *f = evict_and_get_frame();
       ASSERT (f != NULL);
+      f->thread_vaddr = thread_vaddr;
       page = f->page;
     }
 
   return page;
-
 }
 
 void vm_frame_free (void *page)
@@ -69,7 +69,7 @@ void vm_frame_free (void *page)
   palloc_free_page (page);
 }
 
-bool frame_hash_add (void *page, enum palloc_flags flags)
+bool frame_hash_add (void *page, enum palloc_flags flags, void *thread_vaddr)
 {
   struct frame_entry *frame = malloc (sizeof(struct frame_entry));
 
@@ -78,6 +78,7 @@ bool frame_hash_add (void *page, enum palloc_flags flags)
 
   frame->page = page;
   frame->owner = thread_current();
+  frame->thread_vaddr = thread_vaddr;
   lock_acquire (&frame_hash_lock);
 
   if (flags & PAL_USER){
@@ -136,44 +137,49 @@ struct frame_entry * select_frame_to_evict()
   return f;
 }
 
+/* Only call with lock acquired */
 bool page_out_evicted_frame (struct frame_entry *f)
 {
   struct pt_suppl_entry *pt_entry = pt_suppl_get (&f->owner->pt_suppl, f->page);
   size_t swap_slot_id;
 
-  if (pt_entry == NULL)
-  {
-    pt_entry = calloc(1, sizeof (struct pt_suppl_entry*));
-    pt_entry->vaddr = f->page;
-    SET_PRESENCE (pt_entry->status, SWAPPED);
-
-    if (!pt_suppl_add (&f->owner->pt_suppl, pt_entry))
-      return false;
-  }
-
-  if(pagedir_is_dirty (f->owner->pagedir, pt_entry->vaddr))
-  {
-    if (IS_MMF (pt_entry->status))
-    {
-      /* Write back to file */
-      file_write_at (pt_entry->file_info->file, pt_entry->vaddr, 
-        pt_entry->file_info->read_bytes, pt_entry->file_info->offset);
-    }
-    else 
-    {
-      /* Write to swap */
+  if (pt_entry == NULL) 
+    {//Stack page -> put in swap memory
+      pt_entry = malloc(sizeof (struct pt_suppl_entry));
+      pt_entry->vaddr = f->page;
       swap_slot_id = swap_out (pt_entry->vaddr);
       if ((int)swap_slot_id == SWAP_ERROR)
         return false;
-
-      SET_PRESENCE (pt_entry->status, SWAPPED);
-      vm_frame_free (f->page);
       pt_entry->swap_slot = swap_slot_id;
+      SET_TYPE(pt_entry->status, NORMAL);
+      SET_PRESENCE (pt_entry->status, SWAPPED);
+      if (!pt_suppl_add (&f->owner->pt_suppl, pt_entry))
+        return false;
+      pagedir_clear_page (f->owner->pagedir, f->thread_vaddr);
     }
-  }
+  else if (IS_MMF (pt_entry->status))
+    {//MMF -> write back to file if dirty
+      if(pagedir_is_dirty (f->owner->pagedir, pt_entry->vaddr))
+      {
+        /* Write back to file */
+        file_write_at (pt_entry->file_info->file, pt_entry->vaddr, 
+          pt_entry->file_info->read_bytes, pt_entry->file_info->offset);
+      }
+      SET_TYPE(pt_entry->status, MMF);
+      SET_PRESENCE (pt_entry->status, UNLOADED);
+      pagedir_clear_page (f->owner->pagedir, pt_entry->vaddr);
+    }
+  else if (IS_LAZY (pt_entry->status))
+    {//Lazy loaded code -> set to unloaded
+      SET_TYPE(pt_entry->status, LAZY);
+      SET_PRESENCE (pt_entry->status, UNLOADED);
+      pagedir_clear_page (f->owner->pagedir, pt_entry->vaddr);
+    }
+  else
+    {
+      ASSERT(false); //You should never reach this
+    }
 
-
-  pagedir_clear_page (f->owner->pagedir, pt_entry->vaddr);
-
+  printf("STATUS of page %p of %d is %d\n", pt_entry->vaddr, f->owner->tid, pt_entry->status);
   return true;
 }
