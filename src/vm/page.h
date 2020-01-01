@@ -24,7 +24,8 @@
 //Type
 #define SET_TYPE(status, new_type) \
 { status = (status & PRESENCE_MASK) | new_type; }
-
+#define GET_TYPE(status) \
+( status & TYPE_MASK )
 #define IS_NORMAL(status) ((status & TYPE_MASK) == NORMAL)
 #define IS_MMF(status)    ((status & TYPE_MASK) == MMF)
 #define IS_LAZY(status)   ((status & TYPE_MASK) == LAZY)
@@ -58,6 +59,7 @@ enum pt_status
 struct pt_suppl_file_info
   {
   	struct file *file;
+    struct thread *owner;
     int map_id;
     off_t offset;
     uint32_t read_bytes;
@@ -80,6 +82,7 @@ void pt_suppl_init (struct hash *table);
 struct pt_suppl_entry * pt_suppl_get_entry_by_addr(const void *vaddr);
 bool pt_suppl_handle_page_fault (void * vaddr, struct intr_frame *f);
 int pt_suppl_handle_mmap (struct file *f, void *start_page);
+void unmap_all(void);
 void pt_suppl_handle_unmap (int map_id);
 struct pt_suppl_entry * pt_suppl_get (struct hash *table, void *page);
 bool pt_suppl_add (struct hash *table, struct pt_suppl_entry *entry);

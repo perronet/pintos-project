@@ -275,4 +275,6 @@ close_all_files()
     }
 
   lock_release (&files_lock);
+
+  unmap_all();
 }

@@ -84,6 +84,37 @@ pt_suppl_handle_mmap (struct file *f, void *start_page)
   return last_map_id;
 }
 
+/* Unmaps all files of the current thread */
+void 
+unmap_all()
+{
+  struct thread *current = thread_current();
+  struct hash_elem *del_elem;
+  struct pt_suppl_entry *deleted;
+  struct pt_suppl_entry entry;
+  struct pt_suppl_file_info mmf;
+  entry.vaddr = NULL; //trigger special search with map_ids
+  mmf.map_id = -1; //trigger special search with owner;
+  mmf.owner = current;
+  entry.file_info = &mmf;
+  entry.status = MMF;
+      
+  bool done = false;
+  while (!done)
+    {
+      del_elem = hash_find (&current->pt_suppl, &entry.elem);
+      if(del_elem)
+      {
+        deleted = hash_entry (del_elem, struct pt_suppl_entry, elem);
+        ASSERT (deleted->file_info != NULL); //this search should only yield mmf
+        pt_suppl_handle_unmap (deleted->file_info->map_id);
+      }
+      else
+        done = true;
+    }
+}
+
+
 void 
 pt_suppl_handle_unmap (int map_id)
 {
@@ -99,6 +130,7 @@ pt_suppl_handle_unmap (int map_id)
       mmf.map_id = map_id;
       entry.vaddr = NULL; //trigger special search with map_ids
       entry.file_info = &mmf;
+      entry.status = MMF;
       // TODO
       // I'm assuming that this finds a page with that map id at every iteration, re-check this
       del_elem = hash_delete (&curr->pt_suppl, &entry.elem);
@@ -205,6 +237,7 @@ pt_suppl_setup_file_info (struct file *file, off_t offset, uint8_t *page_addr,
   entry->status = status;
   entry->file_info = info;
   info->file = file;
+  info->owner = thread_current();
   info->offset = offset;
   info->map_id = last_map_id;
   info->read_bytes = read_bytes;
@@ -323,6 +356,22 @@ pt_suppl_hash (const struct hash_elem *he, void *aux UNUSED)
   return hash_bytes (&pe->vaddr, sizeof pe->vaddr);
 }
 
+/* The less function supports three different kinds of search
+   - searching for vaddr
+   - searching for map_id
+   - searching for owner.
+   Note that the elements inside the table cannot have vaddr == NULL
+   and hence cannot trigger any special search. 
+
+   The only elements with this property are the elements passed to the 
+   find function of the hash table.
+   - All special searches require to set the status to MMF
+   - By setting vaddr to NULL, trigger special search with map_ids
+   - By setting map_id to -1, trigger special search with owner.
+   When we want elements to not match, we simply return true.
+   This is due to the internals of the hash table 
+   (That assumes a total order: !a<b && !b<a -> a == b)
+   */
 bool 
 pt_suppl_less (const struct hash_elem *ha, 
         const struct hash_elem *hb,
@@ -337,11 +386,14 @@ pt_suppl_less (const struct hash_elem *ha,
   if(a->vaddr == NULL || b->vaddr == NULL)
   {
     ASSERT(a->file_info != NULL || b->file_info != NULL);
-
-    if(a->file_info == NULL || b->file_info == NULL)
+    
+    if(GET_TYPE(a->status) != GET_TYPE(b->status))
       return true; //These elements are actually incomparable
 
-    return a->file_info->map_id < b->file_info->map_id;
+    if(a->file_info->map_id < 0 || b->file_info->map_id < 0)
+      return a->file_info->owner < b->file_info->owner; //special case, owner search
+    else
+      return a->file_info->map_id < b->file_info->map_id; //special case, map_id search
   }
   return a->vaddr < b->vaddr;
 }
