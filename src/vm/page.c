@@ -97,6 +97,7 @@ pt_suppl_handle_unmap (int map_id)
   while (!removed)
     {
       mmf.map_id = map_id;
+      entry.vaddr = NULL; //trigger special search with map_ids
       entry.file_info = &mmf;
       // TODO
       // I'm assuming that this finds a page with that map id at every iteration, re-check this
@@ -105,13 +106,14 @@ pt_suppl_handle_unmap (int map_id)
       if (del_elem != NULL)
       {
         deleted = hash_entry (del_elem, struct pt_suppl_entry, elem);
+
         if (pagedir_is_dirty (curr->pagedir, deleted->vaddr))
           pt_suppl_flush_mmf(deleted);
 
         if(deleted->file_info)
           close_open_file_direct (deleted->file_info->file);
         pt_suppl_destroy(deleted);
-      }
+      } 
       else
       {
         removed = true;
@@ -331,5 +333,15 @@ pt_suppl_less (const struct hash_elem *ha,
   a = hash_entry (ha, struct pt_suppl_entry, elem);
   b = hash_entry (hb, struct pt_suppl_entry, elem);
 
+  /*Special case to handle searches for map_id*/
+  if(a->vaddr == NULL || b->vaddr == NULL)
+  {
+    ASSERT(a->file_info != NULL || b->file_info != NULL);
+
+    if(a->file_info == NULL || b->file_info == NULL)
+      return true; //These elements are actually incomparable
+
+    return a->file_info->map_id < b->file_info->map_id;
+  }
   return a->vaddr < b->vaddr;
 }
