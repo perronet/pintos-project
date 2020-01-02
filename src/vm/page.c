@@ -272,7 +272,7 @@ bool pt_suppl_page_in (struct pt_suppl_entry *entry)
       file_seek (info->file, info->offset);
       if(info->read_bytes > 0)
       {
-        read = file_read (info->file, entry->vaddr, info->read_bytes);
+        read = file_read (info->file, frame, info->read_bytes);
         memset (frame + info->read_bytes, 0, info->zero_bytes);
       }
       else
