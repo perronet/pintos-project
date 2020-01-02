@@ -43,13 +43,14 @@ pt_suppl_handle_mmap (struct file *f, void *start_page)
   struct thread *curr = thread_current ();
   off_t length = file_length (f);
   int remaining;
+  bool error = false;
   if (length == 0)
     return -1;
 
   last_map_id ++;
 
   void * page_addr = start_page; 
-  for(int offset = 0; offset < length; offset += PGSIZE)
+  for(int offset = 0; offset < length && !error; offset += PGSIZE)
   {
     /* No page should be present */
     if (pt_suppl_get (&curr->pt_suppl, page_addr + offset) || 
@@ -62,12 +63,13 @@ pt_suppl_handle_mmap (struct file *f, void *start_page)
     remaining = length - offset;
     if (remaining >= PGSIZE)
       remaining = PGSIZE;
-    pt_suppl_add_mmf(f, offset, page_addr, remaining);
+    if (!pt_suppl_add_mmf(f, offset, page_addr, remaining))
+      error = true;
 
     page_addr += PGSIZE;
   }
 
-  return last_map_id;
+  return error ? -1 : last_map_id;
 }
 
 /* Unmaps all files of the current thread */
