@@ -156,7 +156,6 @@ page_fault (struct intr_frame *f)
   if(is_valid_fault)
   {
     bool handled = pt_suppl_handle_page_fault (fault_addr, f);
-    ASSERT (handled);
     if (handled)
     {
       bool success = pagedir_get_page (current->pagedir, fault_addr);
@@ -164,6 +163,8 @@ page_fault (struct intr_frame *f)
         thread_exit_with_status(-1);
       else return;
     }
+    else
+      thread_exit_with_status(-1);
   }
     /* To implement virtual memory, delete the rest of the function
      body, and replace it with code that brings in the page to
