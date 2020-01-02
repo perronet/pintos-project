@@ -129,11 +129,9 @@ pt_suppl_handle_unmap (int map_id)
         deleted = hash_entry (del_elem, struct pt_suppl_entry, elem);
 
         if (pagedir_is_dirty (curr->pagedir, deleted->vaddr))
-        {
           pt_suppl_flush_mmf(deleted);
-          file_to_close = deleted->file_info->file;
-        }
 
+        file_to_close = deleted->file_info->file;
         pt_suppl_destroy(deleted);
       } 
       else
