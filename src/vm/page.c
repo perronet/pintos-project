@@ -112,6 +112,7 @@ pt_suppl_handle_unmap (int map_id)
   struct hash_elem *del_elem;
   struct pt_suppl_entry *deleted;
   struct thread *curr = thread_current();
+  struct file *file_to_close = NULL;
 
   while (!removed)
     {
@@ -128,10 +129,11 @@ pt_suppl_handle_unmap (int map_id)
         deleted = hash_entry (del_elem, struct pt_suppl_entry, elem);
 
         if (pagedir_is_dirty (curr->pagedir, deleted->vaddr))
+        {
           pt_suppl_flush_mmf(deleted);
+          file_to_close = deleted->file_info->file;
+        }
 
-        if(deleted->file_info)
-          close_open_file_direct (deleted->file_info->file);
         pt_suppl_destroy(deleted);
       } 
       else
@@ -139,6 +141,8 @@ pt_suppl_handle_unmap (int map_id)
         removed = true;
       }
     }
+  if(file_to_close)
+    close_open_file_direct (file_to_close);
 }
 
 struct pt_suppl_entry * 
