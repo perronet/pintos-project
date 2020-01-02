@@ -123,10 +123,10 @@ struct frame_entry * select_frame_to_evict()
     while (hash_next (&i))
     {
       f = hash_entry (hash_cur (&i), struct frame_entry, elem);
-      if (pagedir_is_accessed (f->owner->pagedir, f->page))
+      if (pagedir_is_accessed (f->owner->pagedir, f->thread_vaddr))
       {
         /* Give second chance */
-        pagedir_set_accessed (f->owner->pagedir, f->page, false);
+        pagedir_set_accessed (f->owner->pagedir, f->thread_vaddr, false);
       }
       else
       {
@@ -140,13 +140,13 @@ struct frame_entry * select_frame_to_evict()
 /* Only call with lock acquired */
 bool page_out_evicted_frame (struct frame_entry *f)
 {
-  struct pt_suppl_entry *pt_entry = pt_suppl_get (&f->owner->pt_suppl, f->page);
+  struct pt_suppl_entry *pt_entry = pt_suppl_get (&f->owner->pt_suppl, f->thread_vaddr);
   size_t swap_slot_id;
 
   if (pt_entry == NULL) 
     {//Stack page -> put in swap memory
       pt_entry = malloc(sizeof (struct pt_suppl_entry));
-      pt_entry->vaddr = f->page;
+      pt_entry->vaddr = f->thread_vaddr;
       swap_slot_id = swap_out (pt_entry->vaddr);
       if ((int)swap_slot_id == SWAP_ERROR)
         return false;
