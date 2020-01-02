@@ -177,9 +177,9 @@ bool page_out_evicted_frame (struct frame_entry *f)
     }
   else
     {
+      printf("STATUS of page %p of %d is %d\n", pt_entry->vaddr, f->owner->tid, pt_entry->status);
       ASSERT(false); //You should never reach this
     }
 
-  printf("STATUS of page %p of %d is %d\n", pt_entry->vaddr, f->owner->tid, pt_entry->status);
   return true;
 }
