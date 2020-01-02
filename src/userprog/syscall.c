@@ -17,7 +17,7 @@ static bool create (const char *file, unsigned initial_size);
 static bool remove (const char *file);
 static int open (const char *file);
 static int filesize (int fd);
-static int read (int fd, void *buffer, unsigned length);
+static int read (int fd, void *buffer, unsigned length, void *esp);
 static int write (int fd, const void *buffer, unsigned length);
 static void seek (int fd, unsigned position);
 static unsigned tell (int fd);
@@ -27,13 +27,13 @@ static void munmap (int map_id);
 
 #define CHECK_PTR(esp, wants_to_write) \
 {\
-  if (!is_valid_address_of_thread (thread_current (), esp, wants_to_write))\
+  if (!is_valid_address_of_thread (thread_current (), esp, wants_to_write, 0))\
     exit (-1);\
 }
 
-#define CHECK_PTR_RANGE(start, end, wants_to_write) \
+#define CHECK_PTR_RANGE(start, end, wants_to_write, esp) \
 {\
-  if (!is_valid_address_range_of_thread (thread_current (), start, end, wants_to_write))\
+  if (!is_valid_address_range_of_thread (thread_current (), start, end, wants_to_write, esp))\
     exit(-1);\
 }
 
@@ -113,7 +113,7 @@ syscall_handler (struct intr_frame *f)
       buffer = GET_PARAM(esp, void *);
       size = GET_PARAM(esp, unsigned);
 
-      f->eax = read (fd, buffer, size); 
+      f->eax = read (fd, buffer, size, f->esp); 
     break;
     case SYS_WRITE:
       fd = GET_PARAM(esp, int);
@@ -223,9 +223,9 @@ static int filesize (int fd)
   return filelength_open_file (fd);
 }
 
-static int read (int fd, void *buffer, unsigned length)
+static int read (int fd, void *buffer, unsigned length, void *esp)
 {
-  CHECK_PTR_RANGE(buffer, buffer + length, true);
+  CHECK_PTR_RANGE(buffer, buffer + length, true, esp);
   return read_open_file(fd, buffer, length);
 }
 
@@ -235,7 +235,7 @@ static int read (int fd, void *buffer, unsigned length)
 static int write (int fd, const void *buffer, unsigned length)
 {
   void *buf = (void *)buffer;
-  CHECK_PTR_RANGE(buf, buf + length, false);
+  CHECK_PTR_RANGE(buf, buf + length, false, 0);
   return write_open_file (fd, buf, length);
 }
 

@@ -32,23 +32,9 @@ bool pt_suppl_handle_page_fault (void * vaddr, struct intr_frame *f)
 
   struct pt_suppl_entry *e = pt_suppl_get_entry_by_addr (vaddr);
   if (e != NULL)
-    {
       return pt_suppl_page_in (e);
-    }
   else
-    {
-      void * page = pg_round_down (vaddr);
-      bool is_stack_growth = vaddr >= f->esp-32;
-      is_stack_growth &= PHYS_BASE - page <= MAX_STACK;
-
-      if (is_stack_growth)
-        {
-          pt_suppl_grow_stack(vaddr);
-          return true;
-        }
-      else
-          return false;  
-    } 
+      return pt_suppl_check_and_grow_stack (vaddr, f->esp);
 }
 
 int 
@@ -316,8 +302,21 @@ pt_suppl_page_out (struct hash *table UNUSED, void *page UNUSED)
   //TODO
 }
 
+bool 
+pt_suppl_check_and_grow_stack (const void *vaddr, const void *esp)
+{
+  void * page = pg_round_down (vaddr);
+  bool is_stack_growth = vaddr >= esp-32;
+  is_stack_growth &= PHYS_BASE - page <= MAX_STACK;
+
+  if(is_stack_growth)
+    pt_suppl_grow_stack(vaddr);
+
+  return is_stack_growth;
+}
+
 void
-pt_suppl_grow_stack (void *top)
+pt_suppl_grow_stack (const void *top)
 {
   void *page = vm_frame_alloc(PAL_USER | PAL_ZERO, pg_round_down (top));
   if (page != NULL)

@@ -168,8 +168,8 @@ void thread_set_nice (int);
 int thread_get_recent_cpu (void);
 int thread_get_load_avg (void);
 
-bool is_valid_address_of_thread(struct thread *t, const void *ptr, bool wants_to_write); 
-bool is_valid_address_range_of_thread(struct thread *t, void *begin, void *end, bool wants_to_write); 
+bool is_valid_address_of_thread(struct thread *t, const void *ptr, bool wants_to_write, void *esp); 
+bool is_valid_address_range_of_thread(struct thread *t, void *begin, void *end, bool wants_to_write, void *esp); 
 
 struct thread* lookup_tid (tid_t tid);
 

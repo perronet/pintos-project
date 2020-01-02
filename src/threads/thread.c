@@ -676,9 +676,9 @@ allocate_tid (void)
 }
 
 /* Checks whether the given pointer points to a valid address of
-   the given thread */
+   the given thread. Set esp != 0 if you want to check for stack growth */
 bool 
-is_valid_address_of_thread(struct thread *t, const void *ptr, bool wants_to_write)
+is_valid_address_of_thread(struct thread *t, const void *ptr, bool wants_to_write, void *esp)
 {
   if(ptr != NULL && is_user_vaddr (ptr))
   {
@@ -692,6 +692,9 @@ is_valid_address_of_thread(struct thread *t, const void *ptr, bool wants_to_writ
 #ifdef VM
       {
         struct pt_suppl_entry *entry = pt_suppl_get_entry_by_addr(ptr);
+
+        if(esp != 0 && pt_suppl_check_and_grow_stack (ptr, esp))
+         return true;
 
         if(entry == NULL)
           return false;
@@ -713,7 +716,7 @@ is_valid_address_of_thread(struct thread *t, const void *ptr, bool wants_to_writ
    given thread, boundaries included. It is sufficient to perform 
    a check with PGSIZE step. */
 bool 
-is_valid_address_range_of_thread(struct thread *t, void *begin, void *end, bool wants_to_write)
+is_valid_address_range_of_thread(struct thread *t, void *begin, void *end, bool wants_to_write, void *esp)
 {
   // Trivially wrong range checks
   if(begin == NULL || end == NULL || begin > end)
@@ -722,14 +725,14 @@ is_valid_address_range_of_thread(struct thread *t, void *begin, void *end, bool 
   // Check from begin every PGSIZE
   while(begin < end)
   {
-    if(!is_valid_address_of_thread (t, begin, wants_to_write))
+    if(!is_valid_address_of_thread (t, begin, wants_to_write, esp))
       return false;
 
     begin += PGSIZE;
   }
   
   //Check last element
-  return is_valid_address_of_thread (t, end, wants_to_write);
+  return is_valid_address_of_thread (t, end, wants_to_write, esp);
 } 
 
 struct thread* 

@@ -96,7 +96,8 @@ bool pt_suppl_page_in (struct pt_suppl_entry *entry);
 void pt_suppl_page_out (struct hash *table, void *page);
 void pt_suppl_free (struct hash *table);
 
-void pt_suppl_grow_stack (void *top);
+bool pt_suppl_check_and_grow_stack (const void *vaddr, const void *esp);
+void pt_suppl_grow_stack (const void *top);
 
 unsigned pt_suppl_hash (const struct hash_elem *he, void *aux UNUSED);
 bool pt_suppl_less (const struct hash_elem *ha, const struct hash_elem *hb,
