@@ -245,18 +245,18 @@ pt_suppl_setup_file_info (struct file *file, off_t offset, uint8_t *page_addr,
 
 bool pt_suppl_page_in (struct pt_suppl_entry *entry)
 {
-  uint8_t *page = vm_frame_alloc (PAL_USER, entry->vaddr);
-  if (page == NULL) return false;
+  uint8_t *frame = vm_frame_alloc (PAL_USER, entry->vaddr);
+  if (frame == NULL) return false;
 
   if (IS_SWAPPED (entry->status))
     {
       bool is_writable = entry->file_info == NULL || entry->file_info->writable;
       bool pagedir = pagedir_set_page (thread_current ()->pagedir,
-                    entry->vaddr, page, is_writable);
+                    entry->vaddr, frame, is_writable);
 
       if (!pagedir)
       {
-        vm_frame_free (page);
+        vm_frame_free (frame);
         return false;
       }
 
@@ -274,17 +274,17 @@ bool pt_suppl_page_in (struct pt_suppl_entry *entry)
       file_seek (info->file, info->offset);
       if(info->read_bytes > 0)
       {
-        read = file_read (info->file, page, info->read_bytes);
-        memset (page + info->read_bytes, 0, info->zero_bytes);
+        read = file_read (info->file, entry->vaddr, info->read_bytes);
+        memset (frame + info->read_bytes, 0, info->zero_bytes);
       }
       else
       {
         read = true;
-        memset (page, 0, info->zero_bytes);
+        memset (frame, 0, info->zero_bytes);
       }
       if (read)
         pagedir = pagedir_set_page (thread_current ()->pagedir,
-                    entry->vaddr, page, info->writable);
+                    entry->vaddr, frame, info->writable);
 
       if(pagedir)
         {
@@ -294,7 +294,7 @@ bool pt_suppl_page_in (struct pt_suppl_entry *entry)
         }
       else
         {
-          vm_frame_free (page);
+          vm_frame_free (frame);
           return false;
         }
     }
