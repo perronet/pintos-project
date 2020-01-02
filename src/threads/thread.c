@@ -692,10 +692,14 @@ is_valid_address_of_thread(struct thread *t, const void *ptr, bool wants_to_writ
 #ifdef VM
       {
         struct pt_suppl_entry *entry = pt_suppl_get_entry_by_addr(ptr);
-        if(wants_to_write)
-          return entry->file_info == NULL || entry->file_info->writable;
+
+        if(entry == NULL)
+          return false;
+
+        if(wants_to_write && entry->file_info != NULL)
+          return entry->file_info->writable;
         else
-          return entry != NULL;
+          return true; //normal swapped page
       }
 #else
     return false;
