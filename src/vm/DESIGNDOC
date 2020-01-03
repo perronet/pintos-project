@@ -29,15 +29,6 @@ Marco Perronet <perronet@mpi-sws.org> 416159
 >> `struct' member, global or static variable, `typedef', or
 >> enumeration.  Identify the purpose of each in 25 words or less.
 
-struct frame_entry
-{
-  void *page;
-  struct thread *owner;
-  void *thread_vaddr;
-
-  struct hash_elem elem;
-};
-
 struct pt_suppl_entry
 {
   void *vaddr;
@@ -47,6 +38,8 @@ struct pt_suppl_entry
 
   struct hash_elem elem;
 };
+
+Entry in the supplemental page table
 
 struct pt_suppl_file_info
 {
@@ -59,6 +52,9 @@ struct pt_suppl_file_info
   bool writable;
 };
 
+Entry for memory mapped files: it is embedded in the entry for the supplemental
+page table and is non-NULL if the page is for a memory mapped file
+
 enum pt_status
 {
   MMF_UNLOADED  = MMF     | UNLOADED,
@@ -70,6 +66,9 @@ enum pt_status
   LAZY_SWAPPED  = LAZY    | SWAPPED,
 };
 
+Status of the page in the supplemental page table: can be either a memory mapped
+file or a normal page, and each can be on disk, on the swap partition
+or loaded in memory
 
 ---- ALGORITHMS ----
 
@@ -85,6 +84,8 @@ enum pt_status
 >> A4: When two user processes both need a new frame at the same time,
 >> how are races avoided?
 
+Processes synchronize on the lock of the frame table (frame_hash_lock).
+
 ---- RATIONALE ----
 
 >> A5: Why did you choose the data structure(s) that you did for
@@ -99,18 +100,44 @@ enum pt_status
 >> `struct' member, global or static variable, `typedef', or
 >> enumeration.  Identify the purpose of each in 25 words or less.
 
+struct frame_entry
+{
+  void *page;
+  struct thread *owner;
+  void *thread_vaddr;
+
+  struct hash_elem elem;
+};
+
+Entry in the frame table
+
 ---- ALGORITHMS ----
 
 >> B2: When a frame is required but none is free, some frame must be
 >> evicted.  Describe your code for choosing a frame to evict.
 
+It's a simple implementation of the clock algorithm. The frame table is inspected
+circularly and by exploiting the "accessed" bit in the pagedir
+the frame to evict is chosen according to the algorithm.
+
 >> B3: When a process P obtains a frame that was previously used by a
 >> process Q, how do you adjust the page table (and any other data
 >> structures) to reflect the frame Q no longer has?
 
+The victim's page is swapped to disk or, 
+in the case that the page is of a memory mapped file, written to file.
+The status of the page in the supplemental page table is changed accordingly
+(LAZY_SWAPPED or MMF_UNLOADED, respectively), and the entry of the page in the
+pagedir is removed.
+Finally, the "owner" field of the victim's frame table entry is 
+changed from Q to P.
+
 >> B4: Explain your heuristic for deciding whether a page fault for an
 >> invalid virtual address should cause the stack to be extended into
 >> the page that faulted.
+
+The stack is extended if the invalid virtual address does not 
+exceed the stack pointer by more than 32 bytes.
 
 ---- SYNCHRONIZATION ----
 
@@ -153,14 +180,63 @@ enum pt_status
 >> `struct' member, global or static variable, `typedef', or
 >> enumeration.  Identify the purpose of each in 25 words or less.
 
+struct pt_suppl_entry
+{
+  void *vaddr;
+  enum pt_status status;
+  size_t swap_slot;
+  struct pt_suppl_file_info *file_info;
+
+  struct hash_elem elem;
+};
+
+Entry in the supplemental page table
+
+struct pt_suppl_file_info
+{
+  struct file *file;
+  struct thread *owner;
+  int map_id;
+  off_t offset;
+  uint32_t read_bytes;
+  uint32_t zero_bytes;
+  bool writable;
+};
+
+Entry for memory mapped files: it is embedded in the entry for the supplemental
+page table and is non-NULL if the page is for a memory mapped file
+
+enum pt_status
+{
+  MMF_UNLOADED  = MMF     | UNLOADED,
+  MMF_PRESENT   = MMF     | PRESENT,
+  MMF_SWAPPED   = MMF     | SWAPPED,
+
+  LAZY_UNLOADED = LAZY    | UNLOADED,
+  LAZY_PRESENT  = LAZY    | PRESENT,
+  LAZY_SWAPPED  = LAZY    | SWAPPED,
+};
+
+Status of the page in the supplemental page table: can be either a memory mapped
+file or a normal page, and each can be on disk, on the swap partition
+or loaded in memory
+
 ---- ALGORITHMS ----
 
 >> C2: Describe how memory mapped files integrate into your virtual
 >> memory subsystem.  Explain how the page fault and eviction
 >> processes differ between swap pages and other pages.
 
+If the page is for a memory mapped file, then the field "file_info" in the 
+entry is non-NULL. When swapping, if the page is for a memory mapped file,
+the page is written to disk rather than the swap partition.
+
 >> C3: Explain how you determine whether a new file mapping overlaps
 >> any existing segment.
+
+In pt_suppl_handle_mmap in page.c: every time a page is mapped, it's enough
+to check if there is already a page of the process mapped at that address. 
+If the mapping overlaps, mmap fails.
 
 ---- RATIONALE ----
 
@@ -170,6 +246,11 @@ enum pt_status
 >> that much of their implementation can be shared.  Explain why your
 >> implementation either does or does not share much of the code for
 >> the two situations.
+
+Most of the code is shared, the only difference is a case split in
+page_out_evicted_frame in frame.c. The frame can be either a normal
+frame or a frame of a memory mapped file.
+The rest of the underlying infrastructure is shared.
 
          SURVEY QUESTIONS
          ================

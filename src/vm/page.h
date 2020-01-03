@@ -87,7 +87,6 @@ bool pt_suppl_add_lazy (struct file *file, off_t offset, uint8_t *page_addr,
                 uint32_t read_bytes, uint32_t zero_bytes, bool writable);
 void pt_suppl_flush_mmf (struct pt_suppl_entry *entry);
 bool pt_suppl_page_in (struct pt_suppl_entry *entry);
-void pt_suppl_page_out (struct hash *table, void *page);
 void pt_suppl_free (struct hash *table);
 
 bool pt_suppl_check_and_grow_stack (const void *vaddr, const void *esp);

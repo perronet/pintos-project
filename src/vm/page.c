@@ -56,7 +56,6 @@ pt_suppl_handle_mmap (struct file *f, void *start_page)
     if (pt_suppl_get (&curr->pt_suppl, page_addr + offset) || 
       pagedir_get_page (curr->pagedir, page_addr + offset))
     {
-      // printf("ERROR 2\n"); //TODO remove me
       return -1;
     }
 
@@ -120,7 +119,6 @@ pt_suppl_handle_unmap (int map_id)
       entry.vaddr = NULL; //trigger special search with map_ids
       entry.file_info = &mmf;
       entry.status = MMF;
-      // TODO
       // I'm assuming that this finds a page with that map id at every iteration, re-check this
       del_elem = hash_delete (&curr->pt_suppl, &entry.elem);
 
@@ -296,12 +294,6 @@ bool pt_suppl_page_in (struct pt_suppl_entry *entry)
         }
     }
   else PANIC ("Trying to page-in already loaded page");
-}
-
-void 
-pt_suppl_page_out (struct hash *table UNUSED, void *page UNUSED)
-{
-  //TODO
 }
 
 bool 
