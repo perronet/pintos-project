@@ -1,8 +1,8 @@
-		    +---------------------------+
-		    |             OS            |
-		    | PROJECT 3: VIRTUAL MEMORY |
-		    |      DESIGN DOCUMENT      |
-		    +---------------------------+
+        +---------------------------+
+        |             OS            |
+        | PROJECT 3: VIRTUAL MEMORY |
+        |      DESIGN DOCUMENT      |
+        +---------------------------+
 
 ---- GROUP ----
 
@@ -20,14 +20,56 @@ Marco Perronet <perronet@mpi-sws.org> 416159
 >> preparing your submission, other than the Pintos documentation, course
 >> text, lecture notes, and course staff.
 
-			PAGE TABLE MANAGEMENT
-			=====================
+      PAGE TABLE MANAGEMENT
+      =====================
 
 ---- DATA STRUCTURES ----
 
 >> A1: Copy here the declaration of each new or changed `struct' or
 >> `struct' member, global or static variable, `typedef', or
 >> enumeration.  Identify the purpose of each in 25 words or less.
+
+struct frame_entry
+{
+  void *page;
+  struct thread *owner;
+  void *thread_vaddr;
+
+  struct hash_elem elem;
+};
+
+struct pt_suppl_entry
+{
+  void *vaddr;
+  enum pt_status status;
+  size_t swap_slot;
+  struct pt_suppl_file_info *file_info;
+
+  struct hash_elem elem;
+};
+
+struct pt_suppl_file_info
+{
+  struct file *file;
+  struct thread *owner;
+  int map_id;
+  off_t offset;
+  uint32_t read_bytes;
+  uint32_t zero_bytes;
+  bool writable;
+};
+
+enum pt_status
+{
+  MMF_UNLOADED  = MMF     | UNLOADED,
+  MMF_PRESENT   = MMF     | PRESENT,
+  MMF_SWAPPED   = MMF     | SWAPPED,
+
+  LAZY_UNLOADED = LAZY    | UNLOADED,
+  LAZY_PRESENT  = LAZY    | PRESENT,
+  LAZY_SWAPPED  = LAZY    | SWAPPED,
+};
+
 
 ---- ALGORITHMS ----
 
@@ -48,8 +90,8 @@ Marco Perronet <perronet@mpi-sws.org> 416159
 >> A5: Why did you choose the data structure(s) that you did for
 >> representing virtual-to-physical mappings?
 
-		       PAGING TO AND FROM DISK
-		       =======================
+           PAGING TO AND FROM DISK
+           =======================
 
 ---- DATA STRUCTURES ----
 
@@ -102,8 +144,8 @@ Marco Perronet <perronet@mpi-sws.org> 416159
 >> where your design falls along this continuum and why you chose to
 >> design it this way.
 
-			 MEMORY MAPPED FILES
-			 ===================
+       MEMORY MAPPED FILES
+       ===================
 
 ---- DATA STRUCTURES ----
 
@@ -129,8 +171,8 @@ Marco Perronet <perronet@mpi-sws.org> 416159
 >> implementation either does or does not share much of the code for
 >> the two situations.
 
-			   SURVEY QUESTIONS
-			   ================
+         SURVEY QUESTIONS
+         ================
 
 Answering these questions is optional, but it will help us improve the
 course in future quarters.  Feel free to tell us anything you

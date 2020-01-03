@@ -6,7 +6,6 @@
 
 #define MAX_STACK (8 * (1<<20)); //8MB
 
-#define NORMAL    0b0000
 #define MMF       0b0100
 #define LAZY      0b1000
 
@@ -26,7 +25,6 @@
 { status = (status & PRESENCE_MASK) | new_type; }
 #define GET_TYPE(status) \
 ( status & TYPE_MASK )
-#define IS_NORMAL(status) ((status & TYPE_MASK) == NORMAL)
 #define IS_MMF(status)    ((status & TYPE_MASK) == MMF)
 #define IS_LAZY(status)   ((status & TYPE_MASK) == LAZY)
 
@@ -40,14 +38,10 @@
 
 enum pt_status
   {
-    //Normal status
-    status_PRESENT  = NORMAL  | PRESENT,
-    status_SWAPPED  = NORMAL  | SWAPPED,
-
     //Memory mapped file status
     MMF_UNLOADED  = MMF     | UNLOADED,
     MMF_PRESENT   = MMF     | PRESENT,
-    MMF_SWAPPED   = MMF     | SWAPPED, //TODO MAYBE DELETE AND FLUSH, SETTING ULOADED?
+    MMF_SWAPPED   = MMF     | SWAPPED,
 
     //Lazy loading page
     LAZY_UNLOADED = LAZY    | UNLOADED,

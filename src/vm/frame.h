@@ -22,7 +22,6 @@ struct frame_entry
   struct thread *owner;
   void *thread_vaddr;
 
-  //other info to implement LRU page eviciton policy
   struct hash_elem elem;
 };
 
