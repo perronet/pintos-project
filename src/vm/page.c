@@ -257,11 +257,10 @@ bool pt_suppl_page_in (struct pt_suppl_entry *entry)
         vm_frame_free (frame);
         return false;
       }
-
       swap_in (entry->swap_slot, entry->vaddr);
 
       SET_PRESENCE(entry->status, PRESENT);
-      //TODO DELETE FROM pt_suppl IF NOT MMF?
+      return true;
     }
   else if (IS_UNLOADED (entry->status))
     {
@@ -297,7 +296,6 @@ bool pt_suppl_page_in (struct pt_suppl_entry *entry)
         }
     }
   else PANIC ("Trying to page-in already loaded page");
-  return false;
 }
 
 void 

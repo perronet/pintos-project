@@ -143,21 +143,7 @@ bool page_out_evicted_frame (struct frame_entry *f)
   struct pt_suppl_entry *pt_entry = pt_suppl_get (&f->owner->pt_suppl, f->thread_vaddr);
   size_t swap_slot_id;
 
-  if (pt_entry == NULL) 
-    {//Stack page -> put in swap memory
-      pt_entry = malloc(sizeof (struct pt_suppl_entry));
-      pt_entry->vaddr = f->thread_vaddr;
-      swap_slot_id = swap_out (pt_entry->vaddr);
-      if ((int)swap_slot_id == SWAP_ERROR)
-        return false;
-      pt_entry->swap_slot = swap_slot_id;
-      SET_TYPE(pt_entry->status, NORMAL);
-      SET_PRESENCE (pt_entry->status, SWAPPED);
-      if (!pt_suppl_add (&f->owner->pt_suppl, pt_entry))
-        return false;
-      pagedir_clear_page (f->owner->pagedir, f->thread_vaddr);
-    }
-  else if (IS_MMF (pt_entry->status))
+  if (IS_MMF (pt_entry->status))
     {//MMF -> write back to file if dirty
       if(pagedir_is_dirty (f->owner->pagedir, pt_entry->vaddr))
       {
@@ -170,15 +156,23 @@ bool page_out_evicted_frame (struct frame_entry *f)
       pagedir_clear_page (f->owner->pagedir, pt_entry->vaddr);
     }
   else if (IS_LAZY (pt_entry->status))
-    {//Lazy loaded code -> set to unloaded
+    {//Lazy loaded -> put in swap memory
+      swap_slot_id = swap_out (f->thread_vaddr);
+      if ((int)swap_slot_id == SWAP_ERROR){
+        return false;
+      }
+      pt_entry->swap_slot = swap_slot_id;
       SET_TYPE(pt_entry->status, LAZY);
-      SET_PRESENCE (pt_entry->status, UNLOADED);
-      pagedir_clear_page (f->owner->pagedir, pt_entry->vaddr);
+      SET_PRESENCE (pt_entry->status, SWAPPED);
+      pagedir_clear_page (f->owner->pagedir, f->thread_vaddr);
+    }
+  else if (pt_entry == NULL)
+    {
+      PANIC ("Trying to page-out null entry");
     }
   else
     {
-      printf("STATUS of page %p of %d is %d\n", pt_entry->vaddr, f->owner->tid, pt_entry->status);
-      ASSERT(false); //You should never reach this
+      PANIC ("STATUS of page %p of %d is %d\n", pt_entry->vaddr, f->owner->tid, pt_entry->status);
     }
 
   return true;
