@@ -145,10 +145,9 @@ bool page_out_evicted_frame (struct frame_entry *f)
   size_t swap_slot_id;
 
   if (IS_MMF (pt_entry->status))
-    {//MMF -> write back to file if dirty
+    {// MMF -> write back to file if dirty
       if(pagedir_is_dirty (f->owner->pagedir, pt_entry->vaddr))
       {
-        /* Write back to file */
         lock_fs ();
         file_write_at (pt_entry->file_info->file, pt_entry->vaddr, 
           pt_entry->file_info->read_bytes, pt_entry->file_info->offset);
@@ -159,15 +158,24 @@ bool page_out_evicted_frame (struct frame_entry *f)
       pagedir_clear_page (f->owner->pagedir, pt_entry->vaddr);
     }
   else if (IS_LAZY (pt_entry->status))
-    {//Lazy loaded -> put in swap memory
-      swap_slot_id = swap_out (f->thread_vaddr);
-      if ((int)swap_slot_id == SWAP_ERROR){
-        return false;
+    {// Lazy loaded
+      if (pagedir_is_dirty (f->owner->pagedir, pt_entry->vaddr))
+      {// If dirty -> put in swap memory
+        swap_slot_id = swap_out (f->thread_vaddr);
+        if ((int)swap_slot_id == SWAP_ERROR){
+          return false;
+        }
+        pt_entry->swap_slot = swap_slot_id;
+        SET_TYPE(pt_entry->status, LAZY);
+        SET_PRESENCE (pt_entry->status, SWAPPED);
+        pagedir_clear_page (f->owner->pagedir, f->thread_vaddr);
       }
-      pt_entry->swap_slot = swap_slot_id;
-      SET_TYPE(pt_entry->status, LAZY);
-      SET_PRESENCE (pt_entry->status, SWAPPED);
-      pagedir_clear_page (f->owner->pagedir, f->thread_vaddr);
+      else
+      {// If not dirty -> just mark as unloaded
+        SET_TYPE(pt_entry->status, LAZY);
+        SET_PRESENCE (pt_entry->status, UNLOADED);
+        pagedir_clear_page (f->owner->pagedir, pt_entry->vaddr);
+      }
     }
   else if (pt_entry == NULL)
     {
