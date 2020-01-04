@@ -156,6 +156,7 @@ page_fault (struct intr_frame *f)
   if(is_valid_fault)
   {
     bool handled = pt_suppl_handle_page_fault (fault_addr, f);
+
     if (handled)
     {
       bool success = pagedir_get_page (current->pagedir, fault_addr);

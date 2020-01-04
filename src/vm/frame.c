@@ -38,7 +38,7 @@ void *vm_frame_alloc (enum palloc_flags flags, void *thread_vaddr)
 
   if (page != NULL)
     {
-      bool added = frame_hash_add (page, flags, thread_vaddr);
+      bool added = frame_hash_add (page, flags, pg_round_down(thread_vaddr));
       if (!added)
         PANIC ("Out of memory!");
     }
@@ -144,7 +144,26 @@ bool page_out_evicted_frame (struct frame_entry *f)
   struct pt_suppl_entry *pt_entry = pt_suppl_get (&f->owner->pt_suppl, f->thread_vaddr);
   size_t swap_slot_id;
 
-  if (IS_MMF (pt_entry->status))
+  if (pt_entry == NULL) //if (IS_LAZY (pt_entry->status))
+    {// Lazy loaded
+      //if (pagedir_is_dirty (f->owner->pagedir, f->thread_vaddr))
+      {// If dirty -> put in swap memory
+        swap_slot_id = swap_out (f->thread_vaddr);
+        if ((int)swap_slot_id == SWAP_ERROR){
+          PANIC ("Cannot swap");
+          return false;
+        }
+      }
+      pt_entry = malloc (sizeof (struct pt_suppl_entry));
+      pt_entry->vaddr = f->thread_vaddr;
+      pt_entry->swap_slot = swap_slot_id;
+      pt_entry->file_info = NULL;
+      SET_TYPE(pt_entry->status, LAZY);
+      SET_PRESENCE (pt_entry->status, SWAPPED);
+      hash_insert (&f->owner->pt_suppl, &pt_entry->elem);
+      pagedir_clear_page (f->owner->pagedir, f->thread_vaddr);
+    }
+  else if (IS_MMF (pt_entry->status))
     {// MMF -> write back to file if dirty
       if(pagedir_is_dirty (f->owner->pagedir, pt_entry->vaddr))
       {
@@ -156,30 +175,6 @@ bool page_out_evicted_frame (struct frame_entry *f)
       SET_TYPE(pt_entry->status, MMF);
       SET_PRESENCE (pt_entry->status, UNLOADED);
       pagedir_clear_page (f->owner->pagedir, pt_entry->vaddr);
-    }
-  else if (IS_LAZY (pt_entry->status))
-    {// Lazy loaded
-      if (pagedir_is_dirty (f->owner->pagedir, pt_entry->vaddr))
-      {// If dirty -> put in swap memory
-        swap_slot_id = swap_out (f->thread_vaddr);
-        if ((int)swap_slot_id == SWAP_ERROR){
-          return false;
-        }
-        pt_entry->swap_slot = swap_slot_id;
-        SET_TYPE(pt_entry->status, LAZY);
-        SET_PRESENCE (pt_entry->status, SWAPPED);
-        pagedir_clear_page (f->owner->pagedir, f->thread_vaddr);
-      }
-      else
-      {// If not dirty -> just mark as unloaded
-        SET_TYPE(pt_entry->status, LAZY);
-        SET_PRESENCE (pt_entry->status, UNLOADED);
-        pagedir_clear_page (f->owner->pagedir, pt_entry->vaddr);
-      }
-    }
-  else if (pt_entry == NULL)
-    {
-      PANIC ("Trying to page-out null entry");
     }
   else
     {

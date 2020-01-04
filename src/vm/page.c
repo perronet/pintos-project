@@ -31,6 +31,7 @@ bool pt_suppl_handle_page_fault (void * vaddr, struct intr_frame *f)
 {
   ASSERT (vaddr != NULL && vaddr < PHYS_BASE);
 
+
   struct pt_suppl_entry *e = pt_suppl_get_entry_by_addr (vaddr);
   if (e != NULL)
       return pt_suppl_page_in (e);
@@ -264,7 +265,14 @@ bool pt_suppl_page_in (struct pt_suppl_entry *entry)
       }
       swap_in (entry->swap_slot, entry->vaddr);
 
-      SET_PRESENCE(entry->status, PRESENT);
+      if(GET_TYPE(entry->status) == LAZY)
+        {
+          ASSERT (hash_delete (&thread_current ()->pt_suppl, &entry->elem) != NULL);
+          pt_suppl_destroy(entry);
+        }
+      else  
+        SET_PRESENCE(entry->status, PRESENT);
+
       return true;
     }
   else if (IS_UNLOADED (entry->status))
@@ -290,8 +298,14 @@ bool pt_suppl_page_in (struct pt_suppl_entry *entry)
 
       if(pagedir)
         {
-          SET_PRESENCE(entry->status, PRESENT);
-          //TODO remove from pt_suppl? 
+          if(GET_TYPE(entry->status) == LAZY)
+          {
+            ASSERT (hash_delete (&thread_current ()->pt_suppl, &entry->elem) != NULL);
+            pt_suppl_destroy(entry);
+          }
+          else  
+            SET_PRESENCE(entry->status, PRESENT);
+
           return true;
         }
       else
