@@ -4,6 +4,7 @@
 #include "threads/malloc.h"
 #include "userprog/pagedir.h"
 #include "filesys/file.h"
+#include "filesys/fsaccess.h"
 
 static struct hash frame_hash;
 static struct lock frame_hash_lock;
@@ -148,8 +149,10 @@ bool page_out_evicted_frame (struct frame_entry *f)
       if(pagedir_is_dirty (f->owner->pagedir, pt_entry->vaddr))
       {
         /* Write back to file */
+        lock_fs ();
         file_write_at (pt_entry->file_info->file, pt_entry->vaddr, 
           pt_entry->file_info->read_bytes, pt_entry->file_info->offset);
+        unlock_fs ();
       }
       SET_TYPE(pt_entry->status, MMF);
       SET_PRESENCE (pt_entry->status, UNLOADED);

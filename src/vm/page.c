@@ -1,6 +1,7 @@
 #include "userprog/pagedir.h"
 #include "threads/malloc.h"
 #include "filesys/file.h"
+#include "filesys/fsaccess.h"
 #include "frame.h"
 #include "swap.h"
 #include "page.h"
@@ -41,7 +42,9 @@ int
 pt_suppl_handle_mmap (struct file *f, void *start_page)
 {
   struct thread *curr = thread_current ();
+  lock_fs ();
   off_t length = file_length (f);
+  unlock_fs ();
   int remaining;
   bool error = false;
   if (length == 0)
@@ -138,7 +141,11 @@ pt_suppl_handle_unmap (int map_id)
       }
     }
   if(file_to_close)
-    close_open_file_direct (file_to_close);
+  {
+    lock_fs ();
+    file_close (file_to_close);
+    unlock_fs ();
+  }
 }
 
 struct pt_suppl_entry * 

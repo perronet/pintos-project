@@ -26,9 +26,9 @@ create_file(const char *file, unsigned length)
   bool result = false;
   if (is_valid_address_of_thread (thread_current (), file, false, 0))
     {
-      lock_acquire (&files_lock);
+      lock_fs ();
       result = filesys_create(file, length);
-      lock_release (&files_lock);
+      unlock_fs ();
     }
   
   return result;
@@ -40,9 +40,9 @@ remove_file(const char *file)
   bool result = false;
   if (is_valid_address_of_thread (thread_current (), file, false, 0))
     {    
-      lock_acquire (&files_lock);
+      lock_fs ();
       result = filesys_remove(file);
-      lock_release (&files_lock);
+      unlock_fs ();
     }
 
   return result;
@@ -69,12 +69,12 @@ open_file(const char *filename)
 {
   struct file_descriptor *fd = malloc(sizeof(struct file_descriptor));  
   
-  lock_acquire (&files_lock);
-  struct file * f = filesys_open (filename);
+  lock_fs ();
+  struct file *f = filesys_open (filename);
 
   if(f == NULL)
   {
-    lock_release (&files_lock);
+    unlock_fs ();
     if(fd != NULL)
       free(fd);
 
@@ -88,7 +88,7 @@ open_file(const char *filename)
     list_push_front (&open_files, &fd->elem);
     fd_count ++;
 
-    lock_release (&files_lock);
+    unlock_fs ();
     return fd->fd_num;
   }
 }
@@ -97,11 +97,11 @@ int filelength_open_file (int fd_num)
 {
   int result = -1;
 
-  lock_acquire (&files_lock);
+  lock_fs ();
   struct file_descriptor *fd = get_file_descriptor (fd_num);
   if (fd != NULL)
     result = file_length (fd->open_file);
-  lock_release (&files_lock);
+  unlock_fs ();
 
   return result;
 }
@@ -117,7 +117,7 @@ read_open_file(int fd_num, void *buffer, unsigned length)
       char * end = start + length;
       char c;
 
-      lock_acquire (&files_lock);
+      lock_fs ();
       while(start < end && (c = input_getc()) != 0)
       {
         
@@ -133,7 +133,7 @@ read_open_file(int fd_num, void *buffer, unsigned length)
     result = -1;
   else //it is an actual file descriptor
     {
-      lock_acquire (&files_lock); 
+      lock_fs (); 
       struct file_descriptor *fd = get_file_descriptor (fd_num);
       if (fd != NULL)
         result = file_read (fd->open_file, buffer, length);
@@ -159,13 +159,13 @@ write_open_file (int fd_num, void *buffer, unsigned length)
       result = -1;
   else if (fd_num == STDOUT_FILENO)
     {
-      lock_acquire (&files_lock); 
+      lock_fs (); 
       putbuf (buffer, length); //#TODO check for too long buffers, break them down.
       lock_release(&files_lock); 
     }
   else //it is an actual file descriptor
     {
-      lock_acquire (&files_lock); 
+      lock_fs (); 
       struct file_descriptor *fd = get_file_descriptor (fd_num);
       if (fd != NULL)
         result = file_write (fd->open_file, buffer, length);
@@ -182,11 +182,11 @@ write_open_file (int fd_num, void *buffer, unsigned length)
 void
 seek_open_file (int fd_num, unsigned position)
 {
-  lock_acquire (&files_lock);
+  lock_fs ();
   struct file_descriptor *fd = get_file_descriptor (fd_num);
   if (fd != NULL)
     file_seek (fd->open_file, position);
-  lock_release (&files_lock);
+  unlock_fs ();
 }
 
 /* Returns the current position in FILE as a byte offset from the
@@ -197,11 +197,11 @@ tell_open_file (int fd_num)
 {
   int result = 0;
 
-  lock_acquire (&files_lock);
+  lock_fs ();
   struct file_descriptor *fd = get_file_descriptor (fd_num);
   if (fd != NULL)
     result = file_tell (fd->open_file);
-  lock_release (&files_lock);
+  unlock_fs ();
 
   return result;
 }
@@ -219,10 +219,10 @@ memory_map_file (int fd_num, void *start_page)
   struct file *f = fd->open_file;
   ASSERT (f != NULL);
 
-  lock_acquire (&files_lock);
+  lock_fs ();
   struct file *rf = file_reopen(f);
   int map_id = pt_suppl_handle_mmap (rf, start_page);
-  lock_release (&files_lock);
+  unlock_fs ();
   return map_id;
 }
 
@@ -235,7 +235,7 @@ memory_unmap_file (int map_id)
 void
 close_open_file (int fd_num)
 {
-  lock_acquire (&files_lock); 
+  lock_fs (); 
   struct file_descriptor *fd = get_file_descriptor (fd_num);
   if (fd != NULL && fd->owner == thread_current ()->tid)
   {
@@ -243,22 +243,13 @@ close_open_file (int fd_num)
     list_remove (&fd->elem);      
     free(fd);
   }
-  lock_release (&files_lock);
-}
-
-/* Closes a file that does not have a file descriptor. */
-void 
-close_open_file_direct (struct file *file)
-{
-  lock_acquire (&files_lock); 
-  file_close(file);
-  lock_release (&files_lock);
+  unlock_fs ();
 }
 
 void 
 close_all_files()
 {
-  lock_acquire (&files_lock);
+  lock_fs ();
 
   struct list_elem *e;
   e = list_tail (&open_files);
@@ -275,7 +266,17 @@ close_all_files()
         }
     }
 
-  lock_release (&files_lock);
+  unlock_fs ();
 
   unmap_all();
+}
+
+void lock_fs ()
+{
+  lock_acquire (&files_lock);
+}
+
+void unlock_fs()
+{
+  lock_release (&files_lock);
 }

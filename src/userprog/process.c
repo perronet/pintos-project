@@ -11,6 +11,7 @@
 #include "filesys/directory.h"
 #include "filesys/file.h"
 #include "filesys/filesys.h"
+#include "filesys/fsaccess.h"
 #include "threads/flags.h"
 #include "threads/init.h"
 #include "threads/interrupt.h"
@@ -320,17 +321,21 @@ load (struct args_struct *file_name_args, void (**eip) (void), void **esp)
   process_activate ();
 
   /* Open executable file. */
+  lock_fs ();
   file = filesys_open (file_name_args->file_name);
   if (file == NULL) 
     {
       printf ("load: %s: open failed\n", file_name_args->file_name);
       file_close (file);
+      unlock_fs ();
+
       goto done; 
     }
   else
     {
       t->run_file = file;
       file_deny_write(file);
+      unlock_fs ();
     }
 
   /* Read and verify executable header. */
