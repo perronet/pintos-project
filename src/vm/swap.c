@@ -72,10 +72,9 @@ swap_out (const void* page)
     }
 }
 
+/* Call with lock acquired */
 void swap_free(size_t slot)
 {
-  lock_acquire (&swap_lock);
   bitmap_flip (swap_bm, slot);
-  lock_release (&swap_lock);
 }
   
