@@ -132,6 +132,7 @@ struct frame_entry * select_frame_to_evict()
       else
       {
         found = true;
+        break;
       }
     }
   }
