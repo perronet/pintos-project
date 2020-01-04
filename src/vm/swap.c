@@ -17,6 +17,7 @@ struct lock swap_lock;
 void 
 swap_init ()
 {
+  lock_init(&swap_lock);
   swap_device = block_get_role (BLOCK_SWAP);
   ASSERT (swap_device != NULL);
   size_t bmsize = block_size(swap_device) / SECTORS_PER_PAGE;
@@ -29,7 +30,7 @@ swap_init ()
 void 
 swap_in (size_t slot, void* page)
 {
-    lock_acquire (&swap_lock);
+  lock_acquire (&swap_lock);
   size_t swap_addr_base = slot * SECTORS_PER_PAGE;
   for (size_t i = 0; i < SECTORS_PER_PAGE; i++)
     {
@@ -41,7 +42,7 @@ swap_in (size_t slot, void* page)
     }
 
   swap_free (slot);
-    lock_release (&swap_lock);
+  lock_release (&swap_lock);
 }
 
 size_t 
