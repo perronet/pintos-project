@@ -23,3 +23,5 @@ make; pintos -q run 'echo x'
 TO TEST SWAP
 --swap-size=n
 and use a very small ram
+
+make && pintos -v -k --qemu  --filesys-size=2 --mem=2048 -p tests/vm/page-merge-mm -a page-merge-mm -p tests/vm/child-qsort-mm -a child-qsort-mm --swap-size=4 -- -q  -f run page-merge-mm

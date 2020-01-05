@@ -27,8 +27,11 @@ init (void)
 
   msg ("init");
 
-  arc4_init (&arc4, "foobar", 6);
-  arc4_crypt (&arc4, buf1, sizeof buf1);
+  // arc4_init (&arc4, "foobar", 6);
+  // arc4_crypt (&arc4, buf1, sizeof buf1);
+  for (i = 0; i < sizeof buf1; i++)
+    buf1[i] = i%255;
+
   for (i = 0; i < sizeof buf1; i++)
     histogram[buf1[i]]++;
 }
@@ -63,6 +66,7 @@ sort_chunks (const char *subprocess, int exit_status)
       quiet = false;
     }
 
+  long byte_cnt = 0;
   for (i = 0; i < CHUNK_CNT; i++) 
     {
       char fn[128];
@@ -75,6 +79,21 @@ sort_chunks (const char *subprocess, int exit_status)
       snprintf (fn, sizeof fn, "buf%zu", i);
       CHECK ((handle = open (fn)) > 1, "open \"%s\"", fn);
       read (handle, buf1 + CHUNK_SIZE * i, CHUNK_SIZE);
+
+      for (unsigned int j = CHUNK_SIZE * i; j < (CHUNK_SIZE * i)+CHUNK_SIZE-1; j++)
+      {
+        if (buf1[j] == 254)
+        {
+          continue;
+        }
+        byte_cnt++;
+        if (!(buf1[j] <= buf1[j+1]))
+        {
+          printf("Bad values %d <= %d byte %li\n", buf1[j], buf1[j+1], byte_cnt);
+          ASSERT (false);
+        }
+      }
+
       close (handle);
       quiet = false;
     }
