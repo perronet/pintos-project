@@ -75,19 +75,21 @@ enum pt_status
 };
 
 Status of the page in the supplemental page table: can be either a memory mapped
-file or a normal page, and each can be on disk, on the swap partition
-or loaded in memory
+file or a segment/code page.
+The actual data can be on disk, on the swap partition or loaded in memory. 
 
 ---- ALGORITHMS ----
 
 >> A2: In a few paragraphs, describe your code for locating the frame,
 >> if any, that contains the data of a given page.
+
 The frame table is a hash table indexed by the page. We simply access 
 the hash table, checking for null.
 
 >> A3: How does your code coordinate accessed and dirty bits between
 >> kernel and user virtual addresses that alias a single frame, or
 >> alternatively how do you avoid the issue?
+
 The issue is avoided by accessing the frame with the user's vaddr also
 during system calls.
 
@@ -102,6 +104,7 @@ Processes synchronize on the lock of the frame table (frame_hash_lock).
 
 >> A5: Why did you choose the data structure(s) that you did for
 >> representing virtual-to-physical mappings?
+
 Via a hash table, we can have (amortized) O(1) complexity. We
 almost never have to access the table in a different way than
 indexing by page, and when we have to, using another data structure
