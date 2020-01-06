@@ -222,6 +222,7 @@ memory_map_file (int fd_num, void *start_page)
   lock_fs ();
   struct file *rf = file_reopen(f);
   unlock_fs ();
+
   int map_id = pt_suppl_handle_mmap (rf, start_page);
   return map_id;
 }
@@ -229,7 +230,10 @@ memory_map_file (int fd_num, void *start_page)
 void 
 memory_unmap_file (int map_id)
 {
+  struct thread *current = thread_current ();
+  lock_acquire (&current->pt_suppl_lock);
   pt_suppl_handle_unmap (map_id);
+  lock_release (&current->pt_suppl_lock);
 }
 
 void

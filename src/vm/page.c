@@ -80,6 +80,8 @@ void
 unmap_all()
 {
   struct thread *current = thread_current();
+
+  lock_acquire (&current->pt_suppl_lock);
   struct hash_elem *del_elem;
   struct pt_suppl_entry *deleted;
   struct pt_suppl_entry entry;
@@ -103,6 +105,7 @@ unmap_all()
       else
         done = true;
     }
+  lock_release (&current->pt_suppl_lock);
 }
 
 
@@ -212,7 +215,10 @@ pt_suppl_add_lazy (struct file *file, off_t offset, uint8_t *page_addr,
   struct pt_suppl_entry * entry = pt_suppl_setup_file_info (file, offset, page_addr, 
                                   read_bytes, zero_bytes, writable, LAZY_UNLOADED);
 
-  bool success = pt_suppl_add (&thread_current ()->pt_suppl, entry);
+  struct thread *current = thread_current ();
+  lock_acquire (&current->pt_suppl_lock);
+  bool success = pt_suppl_add (&current->pt_suppl, entry);
+  lock_release (&current->pt_suppl_lock);
   ASSERT (success);
   return entry != NULL;
 }

@@ -74,10 +74,13 @@ or loaded in memory
 
 >> A2: In a few paragraphs, describe your code for locating the frame,
 >> if any, that contains the data of a given page.
+The frame table is a hash table indexed by the page. We simply access 
+the hash table, checking for null.
 
 >> A3: How does your code coordinate accessed and dirty bits between
 >> kernel and user virtual addresses that alias a single frame, or
 >> alternatively how do you avoid the issue?
+
 
 ---- SYNCHRONIZATION ----
 
@@ -90,6 +93,13 @@ Processes synchronize on the lock of the frame table (frame_hash_lock).
 
 >> A5: Why did you choose the data structure(s) that you did for
 >> representing virtual-to-physical mappings?
+Via a hash table, we can have (amortized) O(1) complexity. We
+almost never have to access the table in a different way than
+indexing by page, and when we have to, using another data structure
+wouldn't have changed anything.
+In the page table, we can distinguish between pages by defining the
+less function as a case split. This creates a partial order, but
+we can simply return true when elements are incomparable. 
 
            PAGING TO AND FROM DISK
            =======================
@@ -100,6 +110,9 @@ Processes synchronize on the lock of the frame table (frame_hash_lock).
 >> `struct' member, global or static variable, `typedef', or
 >> enumeration.  Identify the purpose of each in 25 words or less.
 
+#define MAX_STACK (8 * (1<<20)); //8MB
+Max stack constant
+
 struct frame_entry
 {
   void *page;
@@ -108,6 +121,7 @@ struct frame_entry
 
   struct hash_elem elem;
 };
+
 
 Entry in the frame table
 
@@ -136,8 +150,9 @@ changed from Q to P.
 >> invalid virtual address should cause the stack to be extended into
 >> the page that faulted.
 
-The stack is extended if the invalid virtual address does not 
-exceed the stack pointer by more than 32 bytes.
+Given a valid address (PHYS_BASE bounds checked), the stack is extended 
+if the invalid virtual address does not exceed the stack pointer by more 
+than 32 bytes. We also check for stack overflows (variable MAX_STACK).
 
 ---- SYNCHRONIZATION ----
 
@@ -145,6 +160,24 @@ exceed the stack pointer by more than 32 bytes.
 >> particular, explain how it prevents deadlock.  (Refer to the
 >> textbook for an explanation of the necessary conditions for
 >> deadlock.)
+VM synchronization is achieved via a number of different locks, namely
+- Frame lock (FL)
+- Swap lock (SL)
+- File system lock (FSL)
+- Local suppl page table lock (PTL)
+
+Since our supplemental page table is local per process, we only have to 
+synchronize in case of swapping. In all other cases, accesses to the
+supplemental page table is done only by its owner.
+The frame table is guarded by its own lock, since it is global.
+Swapping operations need to be atomic, because we cannot run two clock
+algorithms together.
+In order to prevent deadlock, we eliminated the possibility of a loop in
+the dependency cycle. The possible orders of acquisitions are
+- FL -> SL -> FSL -> PTL
+- SL -> FSL -> PTL
+- FSL -> PTL
+- PTL
 
 >> B6: A page fault in process P can cause another process Q's frame
 >> to be evicted.  How do you ensure that Q cannot access or modify
@@ -155,6 +188,10 @@ exceed the stack pointer by more than 32 bytes.
 >> the file system or swap.  How do you ensure that a second process Q
 >> cannot interfere by e.g. attempting to evict the frame while it is
 >> still being read in?
+
+In order to perform an eviction, a process needs to get the Frame lock and
+the Swap lock. Since this is the case, Q is not able to evict the page while
+P is holding the Frame lock. 
 
 >> B8: Explain how you handle access to paged-out pages that occur
 >> during system calls.  Do you use page faults to bring in pages (as
@@ -227,6 +264,11 @@ or loaded in memory
 >> memory subsystem.  Explain how the page fault and eviction
 >> processes differ between swap pages and other pages.
 
+MM files are stored inside the supplemental page table, just like
+lazy loaded pages. The status enum stores the type of the page, as well
+as its presence on RAM. When mmapping, an entry is created for each page
+of the file (size/PGSIZE) and set to the UNLOADED status. Actual reading is
+performed during a page fault.
 If the page is for a memory mapped file, then the field "file_info" in the 
 entry is non-NULL. When swapping, if the page is for a memory mapped file,
 the page is written to disk rather than the swap partition.
@@ -250,7 +292,9 @@ If the mapping overlaps, mmap fails.
 Most of the code is shared, the only difference is a case split in
 page_out_evicted_frame in frame.c. The frame can be either a normal
 frame or a frame of a memory mapped file.
-The rest of the underlying infrastructure is shared.
+The rest of the underlying infrastructure is shared. 
+This is also thanks to the fact that the we keep both files in a per-thread
+table. We can distinguish between the two (when needed) with the status field.
 
          SURVEY QUESTIONS
          ================

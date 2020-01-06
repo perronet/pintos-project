@@ -88,6 +88,7 @@ start_process (void *file_name_args)
   struct thread* current_thread = thread_current();
 
   pt_suppl_init (&current_thread->pt_suppl);
+  lock_init (&current_thread->pt_suppl_lock);
 
   /* Initialize interrupt frame and load executable. */
   memset (&if_, 0, sizeof if_);

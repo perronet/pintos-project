@@ -116,6 +116,7 @@ struct thread
     uint32_t *pagedir;                  /* Page directory. */
 
     struct hash pt_suppl;          /* Suppl page table */
+    struct lock pt_suppl_lock;     /* Suppl page table lock*/
 #endif
     /* Owned by thread.c. */
     unsigned magic;                     /* Detects stack overflow. */
