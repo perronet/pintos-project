@@ -366,11 +366,16 @@ pt_suppl_free (struct hash *table)
 //**** Hash table functionalities
 
 unsigned 
-pt_suppl_hash (const struct hash_elem *he, void *aux UNUSED)
+pt_suppl_hash (const struct hash_elem *he, void *aux)
 {
-  struct pt_suppl_entry *pe = 
+  if(aux != he)
+    return hash_bytes (&aux, sizeof (void*));
+  else
+  {
+    struct pt_suppl_entry *pe = 
     hash_entry (he, struct pt_suppl_entry, elem);
-  return hash_bytes (&pe->vaddr, sizeof pe->vaddr);
+    return hash_bytes (&pe->vaddr, sizeof (void*));
+  }
 }
 
 /* The less function supports three different kinds of search
