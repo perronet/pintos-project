@@ -239,7 +239,7 @@ allows the kernel to page fault.
 As already explained in B5, our system is pretty granular. VM is 
 synchronized with (num_thread + 3) different locks. We decided to go for
 this design to avoid a Big Kernel Lock situation, in which VM handling is
-totally parallelized. This opens a number of problems, whose solutions
+totally sequential. This opens a number of problems, whose solutions
 are described in the previous answers.
 The reason for this choice is parallelism. E.g. it is nonsensical to lock the
 frame table if all we are doing is setting up lazy loading for a file.
@@ -329,8 +329,9 @@ Most of the code is shared, the only difference is a case split in
 page_out_evicted_frame in frame.c. The frame can be either a normal
 frame or a frame of a memory mapped file.
 The rest of the underlying infrastructure is shared. 
-This is also thanks to the fact that the we keep both files in a per-thread
-table. We can distinguish between the two (when needed) with the status field.
+This is also thanks to the fact that the we keep both types of entries 
+in a per-thread table. We can distinguish between the two 
+(when needed) with the status field.
 
          SURVEY QUESTIONS
          ================
