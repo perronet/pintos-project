@@ -269,7 +269,7 @@ bool pt_suppl_page_in (struct pt_suppl_entry *entry)
         vm_frame_free (frame);
         return false;
       }
-      swap_in (entry->swap_slot, entry->vaddr);
+      swap_in (entry->swap_slot, entry->vaddr); //TODO check swap slot
 
       if(GET_TYPE(entry->status) == LAZY)
         {
