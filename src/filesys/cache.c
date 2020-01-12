@@ -2,7 +2,7 @@
 #include "threads/malloc.h"
 #include "lib/debug.h"
 #include "lib/string.h"
-#include "threads/lock.h"
+#include "threads/synch.h"
 #include "cache.h"
 
 static void bc_move_to_bottom (struct buffer_cache_entry *entry);
@@ -17,12 +17,14 @@ int cache_count;
 void bc_init()
 {
   list_init(&cache);
-  lock_init(&cache_lock)
+  lock_init(&cache_lock);
   cache_count = 0;
 }
 
-void bc_block_read (block_sector_t sector, void *buffer)
+void bc_block_read (block_sector_t sector, void *buffer, off_t offset, off_t size)
 {
+  ASSERT (offset + size <= BLOCK_SECTOR_SIZE);
+
   lock_acquire(&cache_lock);
 
   struct buffer_cache_entry *cache_entry = bc_get_entry_by_sector(sector);
@@ -41,13 +43,15 @@ void bc_block_read (block_sector_t sector, void *buffer)
 
   ASSERT (cache_entry != NULL);
   cache_entry->is_in_second_chance = false;
-  memcpy (buffer, cache_entry->data, BLOCK_SECTOR_SIZE);
+  memcpy (buffer, cache_entry->data + offset, size);
 
   lock_release(&cache_lock);
 }
 
-void bc_block_write (block_sector_t sector, void *buffer)
+void bc_block_write (block_sector_t sector, void *buffer, off_t offset, off_t size)
 {
+  ASSERT (offset + size <= BLOCK_SECTOR_SIZE);
+
   lock_acquire(&cache_lock);
 
   struct buffer_cache_entry *cache_entry = bc_get_entry_by_sector(sector);
@@ -60,12 +64,22 @@ void bc_block_write (block_sector_t sector, void *buffer)
     {/* CACHE FAULT */
       cache_entry = bc_get_free_entry ();
       cache_entry->sector = sector;
+      
+      /* If the sector contains data before or after the chunk
+         we're writing, then we need to read in the sector
+         first.  Otherwise we start with a sector of all zeros. */
+      if (offset > 0 || 
+          size + offset < BLOCK_SECTOR_SIZE) 
+        block_read (fs_device, sector, cache_entry->data);
+      else
+        memset (cache_entry->data, 0, BLOCK_SECTOR_SIZE); 
     }
   
   ASSERT (cache_entry != NULL);
   cache_entry->is_in_second_chance = false;
   cache_entry->is_dirty = true;
-  memcpy (cache_entry->data, buffer, BLOCK_SECTOR_SIZE);
+
+  memcpy (cache_entry->data + offset, buffer, size);
 
   lock_release(&cache_lock);
 }
@@ -121,7 +135,7 @@ static struct buffer_cache_entry * bc_evict ()
       break;
     }
 
-    if(e == list_end (&cache))
+    if(list_next (e) == list_end (&cache))
     {
       e = list_begin (&cache);
       round ++;

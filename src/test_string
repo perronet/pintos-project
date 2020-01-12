@@ -12,7 +12,7 @@ RECOMPILE EXAMPLES THEN COPY FILE (stay in userprog directory):
 cd ../../examples; make; cd ../userprog/build; "pintos -p ../../examples/echo -a echo -- -q"; cd ..
 
 STRING TO RECOMPILE RUN SINGLE TEST (in build directory)
-cd ..; make; cd build; make tests/userprog/sc-bad-arg.result
+cd ..; make; cd build; make tests/userprog/args-none.result VERBOSE=1
 
 ALL TESTS
 cd ..; make; cd build; make check
