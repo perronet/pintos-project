@@ -149,7 +149,7 @@ bool page_out_evicted_frame (struct frame_entry *f)
     {// Lazy loaded
       //if (pagedir_is_dirty (f->owner->pagedir, f->thread_vaddr))
       {// If dirty -> put in swap memory
-        swap_slot_id = swap_out (f->thread_vaddr);
+        swap_slot_id = swap_out (f->page);
         if ((int)swap_slot_id == SWAP_ERROR){
           PANIC ("Cannot swap");
           return false;
