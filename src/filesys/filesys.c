@@ -37,6 +37,7 @@ filesys_init (bool format)
 void
 filesys_done (void) 
 {
+  bc_flush_all();
   free_map_close ();
 }
 

@@ -6,6 +6,7 @@
 #include "cache.h"
 
 static void bc_move_to_bottom (struct buffer_cache_entry *entry);
+static void bc_flush (struct buffer_cache_entry *entry);
 static struct buffer_cache_entry * bc_get_entry_by_sector (block_sector_t sector);
 static struct buffer_cache_entry * bc_get_free_entry (void);
 static struct buffer_cache_entry * bc_evict (void);
@@ -84,6 +85,26 @@ void bc_block_write (block_sector_t sector, void *buffer, off_t offset, off_t si
   lock_release(&cache_lock);
 }
 
+void bc_flush_all (void)
+{
+  lock_acquire(&cache_lock);
+
+  struct list_elem *e;
+  int count = 0;
+  for (e = list_begin (&cache); e != list_end (&cache); e = list_next (e))
+  {
+    struct buffer_cache_entry *entry;
+    entry = list_entry (e, struct buffer_cache_entry, elem);
+    count ++;
+    if (entry->is_dirty)
+    {
+      bc_flush(entry);
+    }
+  }
+
+  lock_release(&cache_lock); 
+}
+
 /* Get a fresh entry to use, either via allocating or 
    eviction. The given entry will be added to the bottom
    of the cache list */
@@ -145,8 +166,8 @@ static struct buffer_cache_entry * bc_evict ()
 
   ASSERT (victim != NULL);
   if(victim->is_dirty)
-    block_write (fs_device, victim->sector, victim->data);
-  
+    bc_flush (victim);
+
   return victim;
 }
 
@@ -156,6 +177,29 @@ static void bc_move_to_bottom (struct buffer_cache_entry *entry)
 {
   list_remove(&entry->elem);
   list_insert(list_end (&cache), &entry->elem);
+}
+
+static void bc_flush (struct buffer_cache_entry *entry)
+{
+  block_write (fs_device, entry->sector, entry->data);
+  entry->is_dirty = false;
+}
+
+void bc_remove (block_sector_t sector)
+{
+  struct list_elem *e;
+  for (e = list_begin (&cache); e != list_end (&cache); e = list_next (e))
+  {
+    struct buffer_cache_entry *entry;
+    entry = list_entry (e, struct buffer_cache_entry, elem);
+    
+    if (entry->sector == sector)
+    {
+      list_remove (&entry->elem);
+      cache_count --;
+      return;
+    }  
+  }
 }
 
 static struct buffer_cache_entry *bc_get_entry_by_sector (block_sector_t sector)

@@ -16,4 +16,6 @@ struct buffer_cache_entry
 void bc_init(void);
 void bc_block_read (block_sector_t sector, void *buffer, off_t offset, off_t size);
 void bc_block_write (block_sector_t sector, void *buffer, off_t offset, off_t size);
+void bc_remove (block_sector_t sector);
+void bc_flush_all (void);
 
