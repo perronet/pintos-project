@@ -3,6 +3,8 @@
 
 #define MAX_CACHE_SECTORS 64
 #define BF_DAEMON_FLUSH_SLEEP_MS 1000
+#define MAX_READ_AHEAD 10
+#define CHECK_READ_AHEAD
 
 struct buffer_cache_entry
 {
@@ -17,6 +19,7 @@ struct buffer_cache_entry
 void bc_init(void);
 void bc_start_daemon (void);
 void bc_block_read (block_sector_t sector, void *buffer, off_t offset, off_t size);
+void bc_request_read_ahead (block_sector_t sector);
 void bc_block_write (block_sector_t sector, void *buffer, off_t offset, off_t size);
 void bc_remove (block_sector_t sector);
 void bc_flush_all (void);

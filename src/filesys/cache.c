@@ -12,17 +12,21 @@ static void bc_flush (struct buffer_cache_entry *entry);
 static struct buffer_cache_entry * bc_get_entry_by_sector (block_sector_t sector);
 static struct buffer_cache_entry * bc_get_free_entry (void);
 static struct buffer_cache_entry * bc_evict (void);
-static void bf_daemon(void *aux);
+static void bf_daemon_flush(void *aux);
+static void bf_daemon_read_ahead(void *aux);
 
 struct list cache;
 struct lock cache_lock;
+block_sector_t read_ahead [MAX_READ_AHEAD];
 int cache_count;
 bool daemon_started;
+struct semaphore rh_sema;
 
 void bc_init ()
 {
   list_init(&cache);
   lock_init(&cache_lock);
+  sema_init(&rh_sema, 0);
   daemon_started = false;
 
   cache_count = 0;
@@ -31,7 +35,9 @@ void bc_init ()
 void bc_start_daemon ()
 {
   ASSERT (!daemon_started);
-  tid_t t = thread_create("buffer cache daemon", PRI_DEFAULT, bf_daemon, NULL);
+  tid_t t = thread_create("bc flush daemon", PRI_DEFAULT, bf_daemon_flush, NULL);
+  ASSERT (t != TID_ERROR);
+  t = thread_create("bc read ahead daemon", PRI_DEFAULT, bf_daemon_read_ahead, NULL);
   ASSERT (t != TID_ERROR);
   daemon_started = true;
 }
@@ -61,6 +67,19 @@ void bc_block_read (block_sector_t sector, void *buffer, off_t offset, off_t siz
   memcpy (buffer, cache_entry->data + offset, size);
 
   lock_release(&cache_lock);
+}
+
+void bc_request_read_ahead (block_sector_t sector)
+{
+  for (int i = 0; i < MAX_READ_AHEAD; i++)
+    {
+      if (read_ahead[i] != 0)
+      {
+        read_ahead[i] = sector;
+        sema_up (&rh_sema);
+        return;
+      }
+    }
 }
 
 void bc_block_write (block_sector_t sector, void *buffer, off_t offset, off_t size)
@@ -101,7 +120,6 @@ void bc_block_write (block_sector_t sector, void *buffer, off_t offset, off_t si
 
 void bc_flush_all (void)
 {
- 
   lock_acquire(&cache_lock);
 
   struct list_elem *e;
@@ -231,7 +249,7 @@ static struct buffer_cache_entry *bc_get_entry_by_sector (block_sector_t sector)
   return NULL;
 }
 
-static void bf_daemon(void *aux UNUSED)
+static void bf_daemon_flush(void *aux UNUSED)
 { 
   while (true)
     {
@@ -244,7 +262,37 @@ static void bf_daemon(void *aux UNUSED)
           if(entry->is_dirty)
             bc_flush (entry);
         }
+
       lock_release(&cache_lock);
+
       timer_msleep (BF_DAEMON_FLUSH_SLEEP_MS);
+    }
+}
+
+static void bf_daemon_read_ahead(void *aux UNUSED)
+{
+  while (true)
+    {
+      sema_down (&rh_sema);
+      lock_acquire(&cache_lock);
+      for (int i = 0; i < MAX_READ_AHEAD; i++)
+        {
+          block_sector_t sector = read_ahead [i];
+          if(sector != 0)
+            {
+              #ifdef CHECK_READ_AHEAD
+              struct buffer_cache_entry *cache_entry;
+              cache_entry = bc_get_entry_by_sector(sector);
+              ASSERT (cache_entry == NULL);
+              #endif
+
+              cache_entry = bc_get_free_entry ();
+              cache_entry->sector = sector;
+              cache_entry->is_dirty = false;
+              block_read (fs_device, sector, cache_entry->data);
+              read_ahead [i] = 0;
+            }  
+        }
+      lock_release(&cache_lock);
     }
 }
