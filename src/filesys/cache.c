@@ -56,7 +56,7 @@ void bc_block_read (block_sector_t sector, void *buffer, off_t offset, off_t siz
       bc_move_to_bottom (cache_entry);
     }
   else
-    {/* CACHE FAULT */
+    {/* CACHE MISS */
       cache_entry = bc_get_free_entry ();
       cache_entry->sector = sector;
       cache_entry->is_dirty = false;
@@ -96,7 +96,7 @@ void bc_block_write (block_sector_t sector, void *buffer, off_t offset, off_t si
       bc_move_to_bottom (cache_entry);
     }
   else
-    {/* CACHE FAULT */
+    {/* CACHE MISS */
       cache_entry = bc_get_free_entry ();
       cache_entry->sector = sector;
       
@@ -164,15 +164,6 @@ static struct buffer_cache_entry * bc_get_free_entry ()
 
 static struct buffer_cache_entry * bc_evict ()
 {
-  /* EVICTION
-      To evict page, we use a slightly modified version of the clock algorithm,
-      in which we always start from the top of the list, and we cycle looking 
-      for an entry in second chance. Since we always start from the beginning,
-      but newly added entries are moved to the end, we have an implicit 
-      mechanism of aging going on. On top of this, during the first iteration,
-      the dirty entries will be ignored. This is done because evicting a dirty
-      entry is more expensive.
-  */
   struct buffer_cache_entry *victim = NULL;
   int round = 0;
   struct list_elem *e;
