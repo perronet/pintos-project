@@ -2,7 +2,7 @@
 #include <list.h>
 
 #define MAX_CACHE_SECTORS 64
-#define BF_DAEMON_FLUSH_SLEEP_NS 100
+#define BF_DAEMON_FLUSH_SLEEP_MS 1000
 
 struct buffer_cache_entry
 {

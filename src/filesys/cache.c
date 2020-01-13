@@ -233,7 +233,7 @@ static struct buffer_cache_entry *bc_get_entry_by_sector (block_sector_t sector)
 
 static void bf_daemon(void *aux UNUSED)
 { 
-  //while (true)
+  while (true)
     {
       lock_acquire(&cache_lock);
       struct list_elem *e;
@@ -245,6 +245,6 @@ static void bf_daemon(void *aux UNUSED)
             bc_flush (entry);
         }
       lock_release(&cache_lock);
-      timer_nsleep (BF_DAEMON_FLUSH_SLEEP_NS);
+      timer_msleep (BF_DAEMON_FLUSH_SLEEP_MS);
     }
 }
