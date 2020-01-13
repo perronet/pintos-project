@@ -97,7 +97,8 @@ inode_create (block_sector_t sector, off_t length)
               size_t i;
               
               for (i = 0; i < sectors; i++) 
-                block_write (fs_device, disk_inode->start + i, zeros);
+                bc_block_write (disk_inode->start + i, zeros, 
+                                0, BLOCK_SECTOR_SIZE);
             }
           success = true; 
         } 
