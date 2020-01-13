@@ -28,6 +28,7 @@ void bc_init ()
   lock_init(&cache_lock);
   sema_init(&rh_sema, 0);
   daemon_started = false;
+  memset (&read_ahead, 0, MAX_READ_AHEAD * sizeof (block_sector_t));
 
   cache_count = 0;
 }
@@ -67,6 +68,19 @@ void bc_block_read (block_sector_t sector, void *buffer, off_t offset, off_t siz
   memcpy (buffer, cache_entry->data + offset, size);
 
   lock_release(&cache_lock);
+}
+
+void bc_request_read_ahead (block_sector_t sector)
+{
+  for (int i = 0; i < MAX_READ_AHEAD; i++)
+    {
+      if (read_ahead[i] == 0)
+      {
+        read_ahead[i] = sector;
+        sema_up (&rh_sema);
+        return;
+      }
+    }
 }
 
 void bc_block_write (block_sector_t sector, void *buffer, off_t offset, off_t size)
@@ -266,38 +280,25 @@ static void bc_daemon_read_ahead(void *aux UNUSED)
   while (true)
     {
       sema_down (&rh_sema);
-      lock_acquire (&cache_lock);
       for (int i = 0; i < MAX_READ_AHEAD; i++)
         {
+          lock_acquire(&cache_lock);
           block_sector_t sector = read_ahead [i];
           if(sector != 0)
             {
-              #ifdef CHECK_READ_AHEAD
               struct buffer_cache_entry *cache_entry;
               cache_entry = bc_get_entry_by_sector(sector);
-              ASSERT (cache_entry == NULL);
-              #endif
+              if (cache_entry == NULL)
+              {
+                cache_entry = bc_get_free_entry ();
+                cache_entry->sector = sector;
+                cache_entry->is_dirty = false;
+                block_read (fs_device, sector, cache_entry->data);
+              }
 
-              cache_entry = bc_get_free_entry ();
-              cache_entry->sector = sector;
-              cache_entry->is_dirty = false;
-              block_read (fs_device, sector, cache_entry->data);
               read_ahead [i] = 0;
             }  
+          lock_release(&cache_lock);
         }
-      lock_release (&cache_lock);
-    }
-}
-
-void bc_request_read_ahead (block_sector_t sector)
-{
-  for (int i = 0; i < MAX_READ_AHEAD; i++)
-    {
-      if (read_ahead[i] != 0)
-      {
-        read_ahead[i] = sector;
-        sema_up (&rh_sema);
-        return;
-      }
     }
 }
