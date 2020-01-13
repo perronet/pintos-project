@@ -3,6 +3,8 @@
 #include "lib/debug.h"
 #include "lib/string.h"
 #include "threads/synch.h"
+#include "threads/thread.h"
+#include "devices/timer.h"
 #include "cache.h"
 
 static void bc_move_to_bottom (struct buffer_cache_entry *entry);
@@ -10,16 +12,28 @@ static void bc_flush (struct buffer_cache_entry *entry);
 static struct buffer_cache_entry * bc_get_entry_by_sector (block_sector_t sector);
 static struct buffer_cache_entry * bc_get_free_entry (void);
 static struct buffer_cache_entry * bc_evict (void);
+static void bf_daemon(void *aux);
 
 struct list cache;
 struct lock cache_lock;
 int cache_count;
+bool daemon_started;
 
-void bc_init()
+void bc_init ()
 {
   list_init(&cache);
   lock_init(&cache_lock);
+  daemon_started = false;
+
   cache_count = 0;
+}
+
+void bc_start_daemon ()
+{
+  ASSERT (!daemon_started);
+  tid_t t = thread_create("buffer cache daemon", PRI_DEFAULT, bf_daemon, NULL);
+  ASSERT (t != TID_ERROR);
+  daemon_started = true;
 }
 
 void bc_block_read (block_sector_t sector, void *buffer, off_t offset, off_t size)
@@ -87,22 +101,23 @@ void bc_block_write (block_sector_t sector, void *buffer, off_t offset, off_t si
 
 void bc_flush_all (void)
 {
+ 
   lock_acquire(&cache_lock);
 
   struct list_elem *e;
   int count = 0;
   for (e = list_begin (&cache); e != list_end (&cache); e = list_next (e))
-  {
-    struct buffer_cache_entry *entry;
-    entry = list_entry (e, struct buffer_cache_entry, elem);
-    count ++;
-    if (entry->is_dirty)
     {
-      bc_flush(entry);
+      struct buffer_cache_entry *entry;
+      entry = list_entry (e, struct buffer_cache_entry, elem);
+      count ++;
+      if (entry->is_dirty)
+        {
+          bc_flush(entry);
+        }
     }
-  }
 
-  lock_release(&cache_lock); 
+  lock_release(&cache_lock);
 }
 
 /* Get a fresh entry to use, either via allocating or 
@@ -214,4 +229,22 @@ static struct buffer_cache_entry *bc_get_entry_by_sector (block_sector_t sector)
     }
 
   return NULL;
+}
+
+static void bf_daemon(void *aux UNUSED)
+{ 
+  //while (true)
+    {
+      lock_acquire(&cache_lock);
+      struct list_elem *e;
+      struct buffer_cache_entry *entry;
+      for (e = list_begin (&cache); e != list_end (&cache); e = list_next (e))
+        {
+          entry = list_entry (e, struct buffer_cache_entry, elem);
+          if(entry->is_dirty)
+            bc_flush (entry);
+        }
+      lock_release(&cache_lock);
+      timer_nsleep (BF_DAEMON_FLUSH_SLEEP_NS);
+    }
 }
