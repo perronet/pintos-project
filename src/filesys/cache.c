@@ -6,7 +6,6 @@
 #include "devices/timer.h"
 #include "cache.h"
 
-static void bc_move_to_bottom (struct buffer_cache_entry *entry);
 static void bc_flush (struct buffer_cache_entry *entry);
 static struct buffer_cache_entry * bc_get_entry_by_sector (block_sector_t sector);
 static struct buffer_cache_entry * bc_get_free_entry (void);
@@ -14,7 +13,7 @@ static struct buffer_cache_entry * bc_evict (void);
 static void bc_daemon_flush(void *aux);
 static void bc_daemon_read_ahead(void *aux);
 
-struct list cache;
+struct buffer_cache_entry cache [MAX_CACHE_SECTORS];
 struct lock cache_lock;
 block_sector_t read_ahead [MAX_READ_AHEAD];
 int cache_count;
@@ -23,7 +22,9 @@ struct semaphore rh_sema;
 
 void bc_init ()
 {
-  list_init(&cache);
+  for (int i = 0; i < MAX_CACHE_SECTORS; i++)
+    cache[i].sector = 0;
+
   lock_init(&cache_lock);
   sema_init(&rh_sema, 0);
   daemon_started = false;
@@ -51,7 +52,7 @@ void bc_block_read (block_sector_t sector, void *buffer, off_t offset, off_t siz
 
   if (cache_entry != NULL)
     {/* CACHE HIT */
-      bc_move_to_bottom (cache_entry);
+      //TODO Record some info?
     }
   else
     {/* CACHE MISS */
@@ -91,7 +92,7 @@ void bc_block_write (block_sector_t sector, void *buffer, off_t offset, off_t si
 
   if (cache_entry != NULL)
     {/* CACHE HIT */
-      bc_move_to_bottom (cache_entry);
+      //TODO Record some info?
     }
   else
     {/* CACHE MISS */
@@ -121,12 +122,10 @@ void bc_flush_all (void)
 {
   lock_acquire(&cache_lock);
 
-  struct list_elem *e;
   int count = 0;
-  for (e = list_begin (&cache); e != list_end (&cache); e = list_next (e))
+  for (int i = 0; i < MAX_CACHE_SECTORS; i++)
     {
-      struct buffer_cache_entry *entry;
-      entry = list_entry (e, struct buffer_cache_entry, elem);
+      struct buffer_cache_entry *entry = &cache[i];
       count ++;
       if (entry->is_dirty)
         {
@@ -138,24 +137,27 @@ void bc_flush_all (void)
 }
 
 /* Get a fresh entry to use, either via allocating or 
-   eviction. The given entry will be added to the bottom
-   of the cache list */
+   eviction. */
 static struct buffer_cache_entry * bc_get_free_entry ()
 {
-  struct buffer_cache_entry *cache_entry;
+  struct buffer_cache_entry *cache_entry = NULL;
   if(cache_count < MAX_CACHE_SECTORS)
     {/* ALLOCATE new cache entry */
-      cache_entry = malloc (sizeof (struct buffer_cache_entry));
-      lock_init (&cache_entry->entry_lock);
-      cond_init (&cache_entry->entry_cond);
-      if (cache_entry == NULL) PANIC ("No memory left");
-      list_insert(list_end (&cache), &cache_entry->elem);
+      for (int i = 0; i < MAX_CACHE_SECTORS; i++)
+        {
+          if (cache[i].sector == 0)
+          {
+            cache_entry = &cache[i];
+            lock_init (&cache_entry->entry_lock);
+            cond_init (&cache_entry->entry_cond);
+            break;
+          }
+        }
       cache_count++;
     }
   else
     {/* EVICT present cache entry */
       cache_entry = bc_evict();
-      bc_move_to_bottom (cache_entry);
     }
 
   return cache_entry;
@@ -165,7 +167,7 @@ static struct buffer_cache_entry * bc_evict ()
 {
   /* EVICTION
       To evict page, we use a slightly modified version of the clock algorithm,
-      in which we always start from the top of the list, and we cycle looking 
+      in which we always start from the top of the array, and we cycle looking 
       for an entry in second chance. Since we always start from the beginning,
       but newly added entries are moved to the end, we have an implicit 
       mechanism of aging going on. On top of this, during the first iteration,
@@ -174,11 +176,10 @@ static struct buffer_cache_entry * bc_evict ()
   */
   struct buffer_cache_entry *victim = NULL;
   int round = 0;
-  struct list_elem *e;
-  for (e = list_begin (&cache); e != list_end (&cache); e = list_next (e))
+  for (int i = 0; i < MAX_CACHE_SECTORS; i++)
   {
     struct buffer_cache_entry *entry;
-    entry = list_entry (e, struct buffer_cache_entry, elem);
+    entry = &cache[i];
     if(!entry->is_in_second_chance)
     {
       if (!entry->is_dirty || round > 0)
@@ -190,9 +191,9 @@ static struct buffer_cache_entry * bc_evict ()
       break;
     }
 
-    if(list_next (e) == list_end (&cache))
+    if (i == MAX_CACHE_SECTORS - 1)
     {
-      e = list_begin (&cache);
+      i = 0;
       round ++;
       ASSERT (round < 3);
     }
@@ -205,14 +206,6 @@ static struct buffer_cache_entry * bc_evict ()
   return victim;
 }
 
-/* Move the element to the end of the cache list, to give
-   it better chance of surviving an eviction */
-static void bc_move_to_bottom (struct buffer_cache_entry *entry)
-{
-  list_remove(&entry->elem);
-  list_insert(list_end (&cache), &entry->elem);
-}
-
 static void bc_flush (struct buffer_cache_entry *entry)
 {
   block_write (fs_device, entry->sector, entry->data);
@@ -221,16 +214,12 @@ static void bc_flush (struct buffer_cache_entry *entry)
 
 void bc_remove (block_sector_t sector)
 {
-  struct list_elem *e;
-  for (e = list_begin (&cache); e != list_end (&cache); e = list_next (e))
+  for (int i = 0; i < MAX_CACHE_SECTORS; i++)
   {
-    struct buffer_cache_entry *entry;
-    entry = list_entry (e, struct buffer_cache_entry, elem);
-    
+    struct buffer_cache_entry *entry = &cache[i];
     if (entry->sector == sector)
     {
-      list_remove (&entry->elem);
-      free (entry);
+      entry->sector = 0;
       cache_count --;
       return;
     }  
@@ -239,11 +228,10 @@ void bc_remove (block_sector_t sector)
 
 static struct buffer_cache_entry *bc_get_entry_by_sector (block_sector_t sector)
 {
-  struct list_elem *e;
   struct buffer_cache_entry *entry;
-  for (e = list_begin (&cache); e != list_end (&cache); e = list_next (e))
+  for (int i = 0; i < MAX_CACHE_SECTORS; i++)
     {
-      entry = list_entry (e, struct buffer_cache_entry, elem);
+      entry = &cache[i];
       if(entry->sector == sector)
         return entry;
     }
@@ -256,11 +244,10 @@ static void bc_daemon_flush(void *aux UNUSED)
   while (true)
     {
       lock_acquire(&cache_lock);
-      struct list_elem *e;
       struct buffer_cache_entry *entry;
-      for (e = list_begin (&cache); e != list_end (&cache); e = list_next (e))
+      for (int i = 0; i < MAX_CACHE_SECTORS; i++)
         {
-          entry = list_entry (e, struct buffer_cache_entry, elem);
+          entry = &cache[i];
           if(entry->is_dirty)
             bc_flush (entry);
         }

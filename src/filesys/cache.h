@@ -16,8 +16,6 @@ struct buffer_cache_entry
 
 	struct lock entry_lock;				/* Used to handle asynchronous reads */
 	struct condition entry_cond;		/* Used to enqueue multiple processes */
-
-	struct list_elem elem;              /* List element. */
 };
 
 void bc_init(void);
