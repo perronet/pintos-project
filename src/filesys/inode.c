@@ -8,6 +8,9 @@
 #include "filesys/cache.h"
 #include "threads/malloc.h"
 
+static void inode_release_disk (struct inode *inode);
+static void inode_load_disk (struct inode *inode);
+
 /* Identifies an inode. */
 #define INODE_MAGIC 0x494e4f44
 
@@ -37,19 +40,21 @@ struct inode
     int open_cnt;                       /* Number of openers. */
     bool removed;                       /* True if deleted, false otherwise. */
     int deny_write_cnt;                 /* 0: writes ok, >0: deny writes. */
-    struct inode_disk data;             /* Inode content. */
+    struct inode_disk* data;            /* Inode content. */
   };
 
 /* Returns the block device sector that contains byte offset POS
    within INODE.
    Returns -1 if INODE does not contain data for a byte at offset
-   POS. */
+   POS. 
+   Remember to call this after having loaded the inode in memory.
+   */
 static block_sector_t
 byte_to_sector (const struct inode *inode, off_t pos) 
 {
   ASSERT (inode != NULL);
-  if (pos < inode->data.length)
-    return inode->data.start + pos / BLOCK_SECTOR_SIZE;
+  if (pos < inode->data->length)
+    return inode->data->start + pos / BLOCK_SECTOR_SIZE;
   else
     return -1;
 }
@@ -138,7 +143,7 @@ inode_open (block_sector_t sector)
   inode->open_cnt = 1;
   inode->deny_write_cnt = 0;
   inode->removed = false;
-  block_read (fs_device, inode->sector, &inode->data);
+  inode->data = NULL; //Lazy loaded
   return inode;
 }
 
@@ -178,11 +183,36 @@ inode_close (struct inode *inode)
       if (inode->removed) 
         {
           free_map_release (inode->sector, 1);
-          free_map_release (inode->data.start,
-                            bytes_to_sectors (inode->data.length)); 
+          inode_load_disk (inode);
+          free_map_release (inode->data->start,
+                            bytes_to_sectors (inode->data->length)); 
+          inode_release_disk (inode);
         }
 
       free (inode); 
+    }
+}
+
+void
+inode_load_disk (struct inode *inode)
+{
+  if (inode->data == NULL)
+    {
+      inode->data = malloc (sizeof (struct inode_disk));
+      if (inode->data == NULL) 
+        PANIC ("No memory left");
+      block_read (fs_device, inode->sector, inode->data);
+    }
+}
+
+void 
+inode_release_disk (struct inode *inode)
+{
+  if (inode->data != NULL)
+    {
+      block_write (fs_device, inode->sector, inode->data);
+      free(inode->data);
+      inode->data = NULL;
     }
 }
 
@@ -201,6 +231,8 @@ inode_remove (struct inode *inode)
 off_t
 inode_read_at (struct inode *inode, void *buffer_, off_t size, off_t offset) 
 {
+  inode_load_disk (inode);
+
   uint8_t *buffer = (uint8_t *)buffer_;
   off_t bytes_read = 0;
 
@@ -229,6 +261,8 @@ inode_read_at (struct inode *inode, void *buffer_, off_t size, off_t offset)
       bytes_read += chunk_size;
     }
 
+  inode_release_disk (inode);
+
   return bytes_read;
 }
 
@@ -241,6 +275,8 @@ off_t
 inode_write_at (struct inode *inode, const void *buffer_, off_t size,
                 off_t offset) 
 {
+  inode_load_disk (inode);
+
   uint8_t *buffer = (uint8_t *)buffer_;
   off_t bytes_written = 0;
 
@@ -272,6 +308,8 @@ inode_write_at (struct inode *inode, const void *buffer_, off_t size,
       bytes_written += chunk_size;
     }
 
+  inode_release_disk (inode);
+
   return bytes_written;
 }
 
@@ -297,7 +335,9 @@ inode_allow_write (struct inode *inode)
 
 /* Returns the length, in bytes, of INODE's data. */
 off_t
-inode_length (const struct inode *inode)
+inode_length (struct inode *inode)
 {
-  return inode->data.length;
+  inode_load_disk (inode);
+  return inode->data->length;
+  inode_release_disk (inode);
 }
