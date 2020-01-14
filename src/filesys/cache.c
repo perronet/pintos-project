@@ -7,9 +7,9 @@
 #include "cache.h"
 
 static void bc_flush (struct buffer_cache_entry *entry);
+bool bc_get_and_lock_entry (struct buffer_cache_entry **ref_entry, block_sector_t sector);
 static struct buffer_cache_entry * bc_get_entry_by_sector (block_sector_t sector);
 static struct buffer_cache_entry * bc_get_free_entry (void);
-static struct buffer_cache_entry * bc_evict (void);
 static void bc_daemon_flush(void *aux);
 static void bc_daemon_read_ahead(void *aux);
 
@@ -23,7 +23,10 @@ struct semaphore rh_sema;
 void bc_init ()
 {
   for (int i = 0; i < MAX_CACHE_SECTORS; i++)
+  {
     cache[i].sector = 0;
+    lock_init (&cache[i].elock);
+  }
 
   lock_init(&cache_lock);
   sema_init(&rh_sema, 0);
@@ -46,27 +49,53 @@ void bc_block_read (block_sector_t sector, void *buffer, off_t offset, off_t siz
 {
   ASSERT (offset + size <= BLOCK_SECTOR_SIZE);
 
-  lock_acquire(&cache_lock);
+  struct buffer_cache_entry *cache_entry = NULL;
+  bool is_cache_miss = bc_get_and_lock_entry (&cache_entry, sector);
 
-  struct buffer_cache_entry *cache_entry = bc_get_entry_by_sector(sector);
-
-  if (cache_entry != NULL)
-    {/* CACHE HIT */
-      //TODO Record some info?
-    }
-  else
-    {/* CACHE MISS */
-      cache_entry = bc_get_free_entry ();
-      cache_entry->sector = sector;
-      cache_entry->is_dirty = false;
+  if(is_cache_miss)
       block_read (fs_device, sector, cache_entry->data);
-    }
 
-  ASSERT (cache_entry != NULL);
   cache_entry->is_in_second_chance = false;
   memcpy (buffer, cache_entry->data + offset, size);
 
-  lock_release(&cache_lock);
+  lock_release(&cache_entry->elock);
+}
+
+/* Guarantees to find and return an entry allocated for the given sector.
+   Returns true in case of cache HIT, false otherwise. If the return is 
+   false, the data field will not be valid.
+*/
+bool bc_get_and_lock_entry (struct buffer_cache_entry **ref_entry, block_sector_t sector)
+{
+  bool is_cache_miss;
+  struct buffer_cache_entry *e;
+
+  do
+  {
+    lock_acquire (&cache_lock);
+    e = bc_get_entry_by_sector(sector);
+    lock_release (&cache_lock);
+
+    if (e == NULL)
+      { /* CACHE MISS */
+        is_cache_miss = true;
+        e = bc_get_free_entry (); //will acquire elock
+        e->sector = sector;
+        e->is_dirty = false;
+      }
+    else
+      { /* CACHE HIT */
+        is_cache_miss = false;
+        lock_acquire (&e->elock);
+      }
+  } while (sector != e->sector);
+
+  ASSERT (e != NULL);
+  ASSERT (e->sector == sector);
+  ASSERT (lock_held_by_current_thread(&e->elock));
+
+  *ref_entry = e;
+  return is_cache_miss;
 }
 
 void bc_request_read_ahead (block_sector_t sector)
@@ -86,86 +115,48 @@ void bc_block_write (block_sector_t sector, void *buffer, off_t offset, off_t si
 {
   ASSERT (offset + size <= BLOCK_SECTOR_SIZE);
 
-  lock_acquire(&cache_lock);
+  struct buffer_cache_entry *cache_entry = NULL;
+  bool is_cache_miss = bc_get_and_lock_entry (&cache_entry, sector);
 
-  struct buffer_cache_entry *cache_entry = bc_get_entry_by_sector(sector);
-
-  if (cache_entry != NULL)
-    {/* CACHE HIT */
-      //TODO Record some info?
-    }
-  else
-    {/* CACHE MISS */
-      cache_entry = bc_get_free_entry ();
-      cache_entry->sector = sector;
-      
-      /* If the sector contains data before or after the chunk
-         we're writing, then we need to read in the sector
-         first.  Otherwise we start with a sector of all zeros. */
-      if (offset > 0 || 
+  if(is_cache_miss)
+  {
+    if (offset > 0 || 
           size + offset < BLOCK_SECTOR_SIZE) 
         block_read (fs_device, sector, cache_entry->data);
       else
-        memset (cache_entry->data, 0, BLOCK_SECTOR_SIZE); 
-    }
-  
-  ASSERT (cache_entry != NULL);
+        memset (cache_entry->data, 0, BLOCK_SECTOR_SIZE);
+  }
+
   cache_entry->is_in_second_chance = false;
   cache_entry->is_dirty = true;
-
   memcpy (cache_entry->data + offset, buffer, size);
 
-  lock_release(&cache_lock);
+  lock_release(&cache_entry->elock);
 }
 
 void bc_flush_all (void)
 {
-  lock_acquire(&cache_lock);
-
   int count = 0;
   for (int i = 0; i < MAX_CACHE_SECTORS; i++)
     {
       struct buffer_cache_entry *entry = &cache[i];
+      lock_acquire (&entry->elock);
       count ++;
-      if (entry->is_dirty)
+      if (entry->sector != 0 && entry->is_dirty)
         {
           bc_flush(entry);
         }
+      lock_release (&entry->elock);
     }
-
-  lock_release(&cache_lock);
 }
 
 /* Get a fresh entry to use, either via allocating or 
-   eviction. */
+   eviction. Call with cache lock DISABLED.
+   The returned entry will be locked by the current thread */
 static struct buffer_cache_entry * bc_get_free_entry ()
 {
-  struct buffer_cache_entry *cache_entry = NULL;
-  if(cache_count < MAX_CACHE_SECTORS)
-    {/* ALLOCATE new cache entry */
-      for (int i = 0; i < MAX_CACHE_SECTORS; i++)
-        {
-          if (cache[i].sector == 0)
-          {
-            cache_entry = &cache[i];
-            lock_init (&cache_entry->entry_lock);
-            cond_init (&cache_entry->entry_cond);
-            break;
-          }
-        }
-      cache_count++;
-    }
-  else
-    {/* EVICT present cache entry */
-      cache_entry = bc_evict();
-    }
-
-  return cache_entry;
-}
-
-static struct buffer_cache_entry * bc_evict ()
-{
   /* EVICTION
+  TODO UPDATE
       To evict page, we use a slightly modified version of the clock algorithm,
       in which we always start from the top of the array, and we cycle looking 
       for an entry in second chance. Since we always start from the beginning,
@@ -174,21 +165,36 @@ static struct buffer_cache_entry * bc_evict ()
       the dirty entries will be ignored. This is done because evicting a dirty
       entry is more expensive.
   */
+  lock_acquire (&cache_lock);
   struct buffer_cache_entry *victim = NULL;
   int round = 0;
-  for (int i = 0; i < MAX_CACHE_SECTORS; i++)
+  for (int i = 0; i < MAX_CACHE_SECTORS;)
   {
-    struct buffer_cache_entry *entry;
-    entry = &cache[i];
-    if(!entry->is_in_second_chance)
+    bool allow_halt = round > 1;
+
+    struct buffer_cache_entry *entry = &cache[i];
+    if(entry->sector == 0 || 
+       entry->is_in_second_chance)
     {
-      if (!entry->is_dirty || round > 0)
-        entry->is_in_second_chance = true;
+      bool get_victim;
+      if (allow_halt)
+      {//Eviction is taking a long time, wait on the lock
+        lock_acquire (&entry->elock);
+        get_victim = true;
+      }
+      else
+        get_victim = lock_try_acquire (&entry->elock);
+
+      if(get_victim)
+      {
+        victim = entry;
+        break;
+      }
     }
     else
     {
-      victim = entry;
-      break;
+      if (!entry->is_dirty || round > 0)
+        entry->is_in_second_chance = true;
     }
 
     if (i == MAX_CACHE_SECTORS - 1)
@@ -197,10 +203,16 @@ static struct buffer_cache_entry * bc_evict ()
       round ++;
       ASSERT (round < 3);
     }
+    else
+      i++;
   }
 
+  lock_release (&cache_lock);
+
   ASSERT (victim != NULL);
-  if(victim->is_dirty)
+  ASSERT (lock_held_by_current_thread(&victim->elock))
+  
+  if(victim->sector != 0 && victim->is_dirty)
     bc_flush (victim);
 
   return victim;
@@ -219,8 +231,13 @@ void bc_remove (block_sector_t sector)
     struct buffer_cache_entry *entry = &cache[i];
     if (entry->sector == sector)
     {
-      entry->sector = 0;
-      cache_count --;
+      lock_acquire (&entry->elock);
+      if (entry->sector == sector) //double check for eviction
+      {
+        entry->sector = 0;
+        cache_count --;
+      }
+      lock_release (&entry->elock);
       return;
     }  
   }
@@ -269,16 +286,15 @@ static void bc_daemon_read_ahead(void *aux UNUSED)
           block_sector_t sector = read_ahead [i];
           if(sector != 0)
             {
-              #ifdef CHECK_READ_AHEAD
-              struct buffer_cache_entry *cache_entry;
-              cache_entry = bc_get_entry_by_sector(sector);
-              ASSERT (cache_entry == NULL);
-              #endif
+              struct buffer_cache_entry *cache_entry = NULL;
+              bool is_cache_miss = bc_get_and_lock_entry (&cache_entry, sector);
 
-              cache_entry = bc_get_free_entry ();
-              cache_entry->sector = sector;
-              cache_entry->is_dirty = false;
-              block_read (fs_device, sector, cache_entry->data);
+              if(is_cache_miss)
+                  block_read (fs_device, sector, cache_entry->data);
+
+              cache_entry->is_in_second_chance = false;
+              lock_release(&cache_entry->elock);
+
               read_ahead [i] = 0;
             }  
         }

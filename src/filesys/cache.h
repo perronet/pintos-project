@@ -14,8 +14,7 @@ struct buffer_cache_entry
 	bool is_in_second_chance;			/* Whether the entry is in second chance */			
 	bool is_dirty;						/* Whether the entry is in second dirty */	
 
-	struct lock entry_lock;				/* Used to handle asynchronous reads */
-	struct condition entry_cond;		/* Used to enqueue multiple processes */
+	struct lock elock;				/* Used to handle asynchronous reads */
 };
 
 void bc_init(void);
