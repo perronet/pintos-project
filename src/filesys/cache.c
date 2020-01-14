@@ -12,8 +12,8 @@ static void bc_flush (struct buffer_cache_entry *entry);
 static struct buffer_cache_entry * bc_get_entry_by_sector (block_sector_t sector);
 static struct buffer_cache_entry * bc_get_free_entry (void);
 static struct buffer_cache_entry * bc_evict (void);
-static void bc_daemon_flush (void *aux);
-static void bc_daemon_read_ahead (void *aux);
+static void bf_daemon_flush(void *aux);
+static void bf_daemon_read_ahead(void *aux);
 
 struct list cache;
 struct lock cache_lock;
@@ -28,7 +28,6 @@ void bc_init ()
   lock_init(&cache_lock);
   sema_init(&rh_sema, 0);
   daemon_started = false;
-  memset (&read_ahead, 0, MAX_READ_AHEAD * sizeof (block_sector_t));
 
   cache_count = 0;
 }
@@ -36,9 +35,9 @@ void bc_init ()
 void bc_start_daemon ()
 {
   ASSERT (!daemon_started);
-  tid_t t = thread_create ("bc flush daemon", PRI_DEFAULT, bc_daemon_flush, NULL);
+  tid_t t = thread_create("bc flush daemon", PRI_DEFAULT, bf_daemon_flush, NULL);
   ASSERT (t != TID_ERROR);
-  t = thread_create ("bc read ahead daemon", PRI_DEFAULT, bc_daemon_read_ahead, NULL);
+  t = thread_create("bc read ahead daemon", PRI_DEFAULT, bf_daemon_read_ahead, NULL);
   ASSERT (t != TID_ERROR);
   daemon_started = true;
 }
@@ -47,16 +46,16 @@ void bc_block_read (block_sector_t sector, void *buffer, off_t offset, off_t siz
 {
   ASSERT (offset + size <= BLOCK_SECTOR_SIZE);
 
-  lock_acquire (&cache_lock);
+  lock_acquire(&cache_lock);
 
-  struct buffer_cache_entry *cache_entry = bc_get_entry_by_sector (sector);
+  struct buffer_cache_entry *cache_entry = bc_get_entry_by_sector(sector);
 
   if (cache_entry != NULL)
     {/* CACHE HIT */
       bc_move_to_bottom (cache_entry);
     }
   else
-    {/* CACHE MISS */
+    {/* CACHE FAULT */
       cache_entry = bc_get_free_entry ();
       cache_entry->sector = sector;
       cache_entry->is_dirty = false;
@@ -74,7 +73,7 @@ void bc_request_read_ahead (block_sector_t sector)
 {
   for (int i = 0; i < MAX_READ_AHEAD; i++)
     {
-      if (read_ahead[i] == 0)
+      if (read_ahead[i] != 0)
       {
         read_ahead[i] = sector;
         sema_up (&rh_sema);
@@ -96,7 +95,7 @@ void bc_block_write (block_sector_t sector, void *buffer, off_t offset, off_t si
       bc_move_to_bottom (cache_entry);
     }
   else
-    {/* CACHE MISS */
+    {/* CACHE FAULT */
       cache_entry = bc_get_free_entry ();
       cache_entry->sector = sector;
       
@@ -148,9 +147,8 @@ static struct buffer_cache_entry * bc_get_free_entry ()
   if(cache_count < MAX_CACHE_SECTORS)
     {/* ALLOCATE new cache entry */
       cache_entry = malloc (sizeof (struct buffer_cache_entry));
-      if (cache_entry == NULL) 
-        PANIC ("No memory left");
-      list_insert (list_end (&cache), &cache_entry->elem);
+      if (cache_entry == NULL) PANIC ("No memory left");
+      list_insert(list_end (&cache), &cache_entry->elem);
       cache_count++;
     }
   else
@@ -164,6 +162,15 @@ static struct buffer_cache_entry * bc_get_free_entry ()
 
 static struct buffer_cache_entry * bc_evict ()
 {
+  /* EVICTION
+      To evict page, we use a slightly modified version of the clock algorithm,
+      in which we always start from the top of the list, and we cycle looking 
+      for an entry in second chance. Since we always start from the beginning,
+      but newly added entries are moved to the end, we have an implicit 
+      mechanism of aging going on. On top of this, during the first iteration,
+      the dirty entries will be ignored. This is done because evicting a dirty
+      entry is more expensive.
+  */
   struct buffer_cache_entry *victim = NULL;
   int round = 0;
   struct list_elem *e;
@@ -201,8 +208,8 @@ static struct buffer_cache_entry * bc_evict ()
    it better chance of surviving an eviction */
 static void bc_move_to_bottom (struct buffer_cache_entry *entry)
 {
-  list_remove (&entry->elem);
-  list_insert (list_end (&cache), &entry->elem);
+  list_remove(&entry->elem);
+  list_insert(list_end (&cache), &entry->elem);
 }
 
 static void bc_flush (struct buffer_cache_entry *entry)
@@ -214,8 +221,6 @@ static void bc_flush (struct buffer_cache_entry *entry)
 void bc_remove (block_sector_t sector)
 {
   struct list_elem *e;
-  lock_acquire (&cache_lock);
-
   for (e = list_begin (&cache); e != list_end (&cache); e = list_next (e))
   {
     struct buffer_cache_entry *entry;
@@ -224,12 +229,10 @@ void bc_remove (block_sector_t sector)
     if (entry->sector == sector)
     {
       list_remove (&entry->elem);
-      free (entry);
       cache_count --;
       return;
     }  
   }
-  lock_release (&cache_lock);
 }
 
 static struct buffer_cache_entry *bc_get_entry_by_sector (block_sector_t sector)
@@ -246,11 +249,11 @@ static struct buffer_cache_entry *bc_get_entry_by_sector (block_sector_t sector)
   return NULL;
 }
 
-static void bc_daemon_flush(void *aux UNUSED)
+static void bf_daemon_flush(void *aux UNUSED)
 { 
   while (true)
     {
-      lock_acquire (&cache_lock);
+      lock_acquire(&cache_lock);
       struct list_elem *e;
       struct buffer_cache_entry *entry;
       for (e = list_begin (&cache); e != list_end (&cache); e = list_next (e))
@@ -260,36 +263,36 @@ static void bc_daemon_flush(void *aux UNUSED)
             bc_flush (entry);
         }
 
-      lock_release (&cache_lock);
+      lock_release(&cache_lock);
 
-      timer_msleep (BC_DAEMON_FLUSH_SLEEP_MS);
+      timer_msleep (BF_DAEMON_FLUSH_SLEEP_MS);
     }
 }
 
-static void bc_daemon_read_ahead(void *aux UNUSED)
+static void bf_daemon_read_ahead(void *aux UNUSED)
 {
   while (true)
     {
       sema_down (&rh_sema);
+      lock_acquire(&cache_lock);
       for (int i = 0; i < MAX_READ_AHEAD; i++)
         {
-          lock_acquire(&cache_lock);
           block_sector_t sector = read_ahead [i];
           if(sector != 0)
             {
+              #ifdef CHECK_READ_AHEAD
               struct buffer_cache_entry *cache_entry;
               cache_entry = bc_get_entry_by_sector(sector);
-              if (cache_entry == NULL)
-              {
-                cache_entry = bc_get_free_entry ();
-                cache_entry->sector = sector;
-                cache_entry->is_dirty = false;
-                block_read (fs_device, sector, cache_entry->data);
-              }
+              ASSERT (cache_entry == NULL);
+              #endif
 
+              cache_entry = bc_get_free_entry ();
+              cache_entry->sector = sector;
+              cache_entry->is_dirty = false;
+              block_read (fs_device, sector, cache_entry->data);
               read_ahead [i] = 0;
             }  
-          lock_release(&cache_lock);
         }
+      lock_release(&cache_lock);
     }
 }

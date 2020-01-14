@@ -2,7 +2,7 @@
 #include <list.h>
 
 #define MAX_CACHE_SECTORS 64
-#define BC_DAEMON_FLUSH_SLEEP_MS 1000
+#define BF_DAEMON_FLUSH_SLEEP_MS 1000
 #define MAX_READ_AHEAD 10
 #define CHECK_READ_AHEAD
 

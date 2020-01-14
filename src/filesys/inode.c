@@ -97,8 +97,7 @@ inode_create (block_sector_t sector, off_t length)
               size_t i;
               
               for (i = 0; i < sectors; i++) 
-                bc_block_write (disk_inode->start + i, zeros, 
-                                0, BLOCK_SECTOR_SIZE);
+                block_write (fs_device, disk_inode->start + i, zeros);
             }
           success = true; 
         } 
@@ -220,13 +219,6 @@ inode_read_at (struct inode *inode, void *buffer_, off_t size, off_t offset)
       int chunk_size = size < min_left ? size : min_left;
       if (chunk_size <= 0)
         break;
-
-      /* Read ahead: if next sector is still in inode, let's fetch it */
-      block_sector_t next = sector_idx +1;
-      if (next * BLOCK_SECTOR_SIZE < inode->data.start + inode->data.length)
-        {
-          bc_request_read_ahead (next);
-        }
 
       bc_block_read (sector_idx, buffer + bytes_read, 
                      sector_ofs, chunk_size);
