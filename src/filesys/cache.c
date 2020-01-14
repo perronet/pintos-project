@@ -24,7 +24,11 @@ void bc_init ()
 {
   for (int i = 0; i < MAX_CACHE_SECTORS; i++)
   {
-    cache[i].sector = 0;
+    struct buffer_cache_entry *entry = &cache[i];
+    entry->sector = 0;
+    entry->is_in_second_chance = false;
+    entry->is_dirty = false;
+    entry->readers = 0;
     lock_init (&cache[i].elock);
   }
 
@@ -56,8 +60,13 @@ void bc_block_read (block_sector_t sector, void *buffer, off_t offset, off_t siz
       block_read (fs_device, sector, cache_entry->data);
 
   cache_entry->is_in_second_chance = false;
+  cache_entry->readers ++;
+  lock_release(&cache_entry->elock);
+  
   memcpy (buffer, cache_entry->data + offset, size);
 
+  lock_acquire(&cache_entry->elock);
+  cache_entry->readers --; //entry will not be evicted, readers > 0
   lock_release(&cache_entry->elock);
 }
 
@@ -173,28 +182,35 @@ static struct buffer_cache_entry * bc_get_free_entry ()
     bool allow_halt = round > 1;
 
     struct buffer_cache_entry *entry = &cache[i];
-    if(entry->sector == 0 || 
-       entry->is_in_second_chance)
+    bool readers_present = entry->readers > 0;
+
+    if(!readers_present)
     {
-      bool get_victim;
-      if (allow_halt)
-      {//Eviction is taking a long time, wait on the lock
-        lock_acquire (&entry->elock);
-        get_victim = true;
+      if(entry->sector == 0 || 
+         entry->is_in_second_chance)
+      {
+        bool get_victim;
+        if (allow_halt)
+        {//Eviction is taking a long time, wait on the lock
+          lock_acquire (&entry->elock);
+          get_victim = true;
+        }
+        else
+        {
+          get_victim = lock_try_acquire (&entry->elock);
+        }
+
+        if(get_victim)
+        {
+          victim = entry;
+          break;
+        }
       }
       else
-        get_victim = lock_try_acquire (&entry->elock);
-
-      if(get_victim)
       {
-        victim = entry;
-        break;
+        if (!entry->is_dirty || round > 0)
+          entry->is_in_second_chance = true;
       }
-    }
-    else
-    {
-      if (!entry->is_dirty || round > 0)
-        entry->is_in_second_chance = true;
     }
 
     if (i == MAX_CACHE_SECTORS - 1)

@@ -13,7 +13,7 @@ struct buffer_cache_entry
 	char data [BLOCK_SECTOR_SIZE];		/* Data contained in the cache */
 	bool is_in_second_chance;			/* Whether the entry is in second chance */			
 	bool is_dirty;						/* Whether the entry is in second dirty */	
-
+	unsigned int readers;
 	struct lock elock;				/* Used to handle asynchronous reads */
 };
 
