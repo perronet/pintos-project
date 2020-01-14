@@ -2,7 +2,6 @@
 #include "threads/malloc.h"
 #include "lib/debug.h"
 #include "lib/string.h"
-#include "threads/synch.h"
 #include "threads/thread.h"
 #include "devices/timer.h"
 #include "cache.h"
@@ -12,8 +11,8 @@ static void bc_flush (struct buffer_cache_entry *entry);
 static struct buffer_cache_entry * bc_get_entry_by_sector (block_sector_t sector);
 static struct buffer_cache_entry * bc_get_free_entry (void);
 static struct buffer_cache_entry * bc_evict (void);
-static void bf_daemon_flush(void *aux);
-static void bf_daemon_read_ahead(void *aux);
+static void bc_daemon_flush(void *aux);
+static void bc_daemon_read_ahead(void *aux);
 
 struct list cache;
 struct lock cache_lock;
@@ -35,9 +34,9 @@ void bc_init ()
 void bc_start_daemon ()
 {
   ASSERT (!daemon_started);
-  tid_t t = thread_create("bc flush daemon", PRI_DEFAULT, bf_daemon_flush, NULL);
+  tid_t t = thread_create("bc flush daemon", PRI_DEFAULT, bc_daemon_flush, NULL);
   ASSERT (t != TID_ERROR);
-  t = thread_create("bc read ahead daemon", PRI_DEFAULT, bf_daemon_read_ahead, NULL);
+  t = thread_create("bc read ahead daemon", PRI_DEFAULT, bc_daemon_read_ahead, NULL);
   ASSERT (t != TID_ERROR);
   daemon_started = true;
 }
@@ -55,7 +54,7 @@ void bc_block_read (block_sector_t sector, void *buffer, off_t offset, off_t siz
       bc_move_to_bottom (cache_entry);
     }
   else
-    {/* CACHE FAULT */
+    {/* CACHE MISS */
       cache_entry = bc_get_free_entry ();
       cache_entry->sector = sector;
       cache_entry->is_dirty = false;
@@ -95,7 +94,7 @@ void bc_block_write (block_sector_t sector, void *buffer, off_t offset, off_t si
       bc_move_to_bottom (cache_entry);
     }
   else
-    {/* CACHE FAULT */
+    {/* CACHE MISS */
       cache_entry = bc_get_free_entry ();
       cache_entry->sector = sector;
       
@@ -147,6 +146,8 @@ static struct buffer_cache_entry * bc_get_free_entry ()
   if(cache_count < MAX_CACHE_SECTORS)
     {/* ALLOCATE new cache entry */
       cache_entry = malloc (sizeof (struct buffer_cache_entry));
+      lock_init (&cache_entry->entry_lock);
+      cond_init (&cache_entry->entry_cond);
       if (cache_entry == NULL) PANIC ("No memory left");
       list_insert(list_end (&cache), &cache_entry->elem);
       cache_count++;
@@ -229,6 +230,7 @@ void bc_remove (block_sector_t sector)
     if (entry->sector == sector)
     {
       list_remove (&entry->elem);
+      free (entry);
       cache_count --;
       return;
     }  
@@ -249,7 +251,7 @@ static struct buffer_cache_entry *bc_get_entry_by_sector (block_sector_t sector)
   return NULL;
 }
 
-static void bf_daemon_flush(void *aux UNUSED)
+static void bc_daemon_flush(void *aux UNUSED)
 { 
   while (true)
     {
@@ -265,11 +267,11 @@ static void bf_daemon_flush(void *aux UNUSED)
 
       lock_release(&cache_lock);
 
-      timer_msleep (BF_DAEMON_FLUSH_SLEEP_MS);
+      timer_msleep (BC_DAEMON_FLUSH_SLEEP_MS);
     }
 }
 
-static void bf_daemon_read_ahead(void *aux UNUSED)
+static void bc_daemon_read_ahead(void *aux UNUSED)
 {
   while (true)
     {

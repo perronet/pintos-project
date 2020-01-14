@@ -1,8 +1,9 @@
 #include "devices/block.h"
+#include "threads/synch.h"
 #include <list.h>
 
 #define MAX_CACHE_SECTORS 64
-#define BF_DAEMON_FLUSH_SLEEP_MS 1000
+#define BC_DAEMON_FLUSH_SLEEP_MS 1000
 #define MAX_READ_AHEAD 10
 #define CHECK_READ_AHEAD
 
@@ -11,7 +12,10 @@ struct buffer_cache_entry
 	block_sector_t sector;              /* Sector number of disk location. */
 	char data [BLOCK_SECTOR_SIZE];		/* Data contained in the cache */
 	bool is_in_second_chance;			/* Whether the entry is in second chance */			
-	bool is_dirty;						/* Whether the entry is in second dirty */			
+	bool is_dirty;						/* Whether the entry is in second dirty */	
+
+	struct lock entry_lock;				/* Used to handle asynchronous reads */
+	struct condition entry_cond;		/* Used to enqueue multiple processes */
 
 	struct list_elem elem;              /* List element. */
 };
