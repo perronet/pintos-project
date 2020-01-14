@@ -95,14 +95,14 @@ inode_create (block_sector_t sector, off_t length)
       disk_inode->magic = INODE_MAGIC;
       if (free_map_allocate (sectors, &disk_inode->start)) 
         {
-          block_write (fs_device, sector, disk_inode);
+          bc_block_write (sector, disk_inode, 0, BLOCK_SECTOR_SIZE);
           if (sectors > 0) 
             {
               static char zeros[BLOCK_SECTOR_SIZE];
               size_t i;
               
               for (i = 0; i < sectors; i++) 
-                block_write (fs_device, disk_inode->start + i, zeros);
+                bc_block_write (disk_inode->start + i, zeros, 0, BLOCK_SECTOR_SIZE);
             }
           success = true; 
         } 
@@ -201,7 +201,7 @@ inode_load_disk (struct inode *inode)
       inode->data = malloc (sizeof (struct inode_disk));
       if (inode->data == NULL) 
         PANIC ("No memory left");
-      block_read (fs_device, inode->sector, inode->data);
+      bc_block_read (inode->sector, inode->data, 0, BLOCK_SECTOR_SIZE);
     }
 }
 
@@ -210,7 +210,7 @@ inode_release_disk (struct inode *inode)
 {
   if (inode->data != NULL)
     {
-      block_write (fs_device, inode->sector, inode->data);
+      bc_block_write (inode->sector, inode->data, 0, BLOCK_SECTOR_SIZE);
       free(inode->data);
       inode->data = NULL;
     }
