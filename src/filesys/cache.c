@@ -214,7 +214,7 @@ static void bc_flush (struct buffer_cache_entry *entry)
 void bc_remove (block_sector_t sector)
 {
   struct list_elem *e;
-  lock_acquire (&cache);
+  lock_acquire (&cache_lock);
 
   for (e = list_begin (&cache); e != list_end (&cache); e = list_next (e))
   {
@@ -224,12 +224,12 @@ void bc_remove (block_sector_t sector)
     if (entry->sector == sector)
     {
       list_remove (&entry->elem);
-      free (&entry);
+      free (entry);
       cache_count --;
       return;
     }  
   }
-  lock_release (&cache);
+  lock_release (&cache_lock);
 }
 
 static struct buffer_cache_entry *bc_get_entry_by_sector (block_sector_t sector)
@@ -262,7 +262,7 @@ static void bc_daemon_flush(void *aux UNUSED)
 
       lock_release (&cache_lock);
 
-      timer_msleep (bc_daemon_flush_SLEEP_MS);
+      timer_msleep (BC_DAEMON_FLUSH_SLEEP_MS);
     }
 }
 
