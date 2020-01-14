@@ -25,7 +25,7 @@ void bc_init ()
   for (int i = 0; i < MAX_CACHE_SECTORS; i++)
   {
     struct buffer_cache_entry *entry = &cache[i];
-    entry->sector = 0;
+    entry->sector = EMPTY_SECTOR;
     entry->is_in_second_chance = false;
     entry->is_dirty = false;
     entry->readers = 0;
@@ -111,7 +111,7 @@ void bc_request_read_ahead (block_sector_t sector)
 {
   for (int i = 0; i < MAX_READ_AHEAD; i++)
     {
-      if (read_ahead[i] != 0)
+      if (read_ahead[i] != EMPTY_SECTOR)
       {
         read_ahead[i] = sector;
         sema_up (&rh_sema);
@@ -151,7 +151,7 @@ void bc_flush_all (void)
       struct buffer_cache_entry *entry = &cache[i];
       lock_acquire (&entry->elock);
       count ++;
-      if (entry->sector != 0 && entry->is_dirty)
+      if (entry->sector != EMPTY_SECTOR && entry->is_dirty)
         {
           bc_flush(entry);
         }
@@ -186,7 +186,7 @@ static struct buffer_cache_entry * bc_get_free_entry ()
 
     if(!readers_present)
     {
-      if(entry->sector == 0 || 
+      if(entry->sector == EMPTY_SECTOR || 
          entry->is_in_second_chance)
       {
         bool get_victim;
@@ -228,7 +228,7 @@ static struct buffer_cache_entry * bc_get_free_entry ()
   ASSERT (victim != NULL);
   ASSERT (lock_held_by_current_thread(&victim->elock))
   
-  if(victim->sector != 0 && victim->is_dirty)
+  if(victim->sector != EMPTY_SECTOR && victim->is_dirty)
     bc_flush (victim);
 
   return victim;
@@ -250,7 +250,7 @@ void bc_remove (block_sector_t sector)
       lock_acquire (&entry->elock);
       if (entry->sector == sector) //double check for eviction
       {
-        entry->sector = 0;
+        entry->sector = EMPTY_SECTOR;
         cache_count --;
       }
       lock_release (&entry->elock);
@@ -311,7 +311,7 @@ static void bc_daemon_read_ahead(void *aux UNUSED)
               cache_entry->is_in_second_chance = false;
               lock_release(&cache_entry->elock);
 
-              read_ahead [i] = 0;
+              read_ahead [i] = EMPTY_SECTOR;
             }  
         }
       lock_release(&cache_lock);
