@@ -7,6 +7,7 @@
 #include "filesys/directory.h"
 #include "filesys/file.h"
 #include "filesys/filesys.h"
+#include "filesys/fsaccess.h"
 #include "threads/malloc.h"
 #include "threads/palloc.h"
 #include "threads/vaddr.h"
@@ -63,7 +64,7 @@ fsutil_rm (char **argv)
   const char *file_name = argv[1];
   
   printf ("Deleting '%s'...\n", file_name);
-  if (!filesys_remove (file_name))
+  if (!remove_file_or_dir (file_name))
     PANIC ("%s: delete failed\n", file_name);
 }
 

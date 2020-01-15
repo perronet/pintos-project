@@ -214,6 +214,7 @@ thread_create (const char *name, int priority,
   init_thread (t, name, priority);
   tid = t->tid = allocate_tid ();
   t->parent_tid = thread_current ()->tid;
+  t->curr_dir = thread_current ()->curr_dir;
 
   /* Stack frame for kernel_thread(). */
   kf = alloc_frame (t, sizeof *kf);
@@ -322,7 +323,7 @@ thread_exit (void)
 {
   ASSERT (!intr_context ());
 
-  close_all_files ();
+  close_all_files_and_dir ();
 
 #ifdef USERPROG
   process_exit ();
@@ -552,6 +553,7 @@ init_thread (struct thread *t, const char *name, int priority)
   t->child_born_status = 0;
   t->exit_status = 0;
   t->run_file = NULL;
+  t->curr_dir = NULL; // NULL means root directory
   t->magic = THREAD_MAGIC;
 
   /* Per-thread initialization */

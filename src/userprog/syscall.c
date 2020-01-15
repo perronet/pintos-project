@@ -24,6 +24,11 @@ static unsigned tell (int fd);
 static void close (int fd);
 static int mmap (int fd, void *page);
 static void munmap (int map_id);
+static bool chdir (const char *dir);
+static bool mkdir (const char *dir);
+static bool readdir (int fd, char *name);
+static bool isdir (int fd);
+static int inumber (int fd);
 
 #define CHECK_PTR(esp, wants_to_write) \
 {\
@@ -65,7 +70,8 @@ syscall_handler (struct intr_frame *f)
   pid_t pid;
   void *buffer;
   const void *buffer_cnst;
-  const char *file;
+  const char *file, *dir;
+  char *name;
   unsigned size, position, initial_size;
   switch (syscall_id)
   {
@@ -152,19 +158,30 @@ syscall_handler (struct intr_frame *f)
       munmap(map_id);
     break;
     case SYS_CHDIR:
-    
+      dir = GET_PARAM(esp, char *);
+
+      f->eax = chdir (dir);
     break;
     case SYS_MKDIR:
-    
+      dir = GET_PARAM(esp, char *);
+
+      f->eax = mkdir (dir);
     break;
     case SYS_READDIR:
-    
+      fd = GET_PARAM(esp, int);
+      name = GET_PARAM(esp, char *);
+
+      f->eax = readdir (fd, name);
     break;
     case SYS_ISDIR:
-    
+      fd = GET_PARAM(esp, int);
+
+      f->eax = isdir (fd);
     break;
     case SYS_INUMBER:
-    
+      fd = GET_PARAM(esp, int);
+
+      f->eax = inumber (fd);
     break;
   }
 }
@@ -209,13 +226,13 @@ static bool create (const char *file, unsigned initial_size)
 static bool remove (const char *file)
 {
   CHECK_PTR(file, false);
-  return remove_file(file);
+  return remove_file_or_dir(file);
 }
 
 static int open (const char *file)
 {
   CHECK_PTR(file, false);
-  return open_file(file);
+  return open_file_or_dir(file);
 }
 
 static int filesize (int fd)
@@ -251,7 +268,7 @@ static unsigned tell (int fd)
 
 static void close (int fd)
 {
-  close_open_file (fd);
+  close_open_file_or_dir (fd);
 }
 
 static int mmap (int fd, void *page)
@@ -262,4 +279,35 @@ static int mmap (int fd, void *page)
 static void munmap (int map_id)
 {
   memory_unmap_file (map_id);
+}
+
+static bool chdir (const char *dir)
+{
+  CHECK_PTR(dir, false);
+
+  return change_directory (dir);
+}
+
+static bool mkdir (const char *dir)
+{
+  CHECK_PTR(dir, false);
+
+  return create_directory (dir);
+}
+
+static bool readdir (int fd, char *name)
+{
+  CHECK_PTR(name, true);
+
+  return read_directory (fd, name);
+}
+
+static bool isdir (int fd)
+{
+  return is_directory (fd);
+}
+
+static int inumber (int fd)
+{
+  return fd_inode_number (fd);
 }
