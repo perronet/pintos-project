@@ -70,8 +70,10 @@ void bc_block_read (block_sector_t sector, void *buffer, off_t offset, off_t siz
   struct buffer_cache_entry *cache_entry = NULL;
   bool is_cache_miss = bc_get_and_lock_entry (&cache_entry, sector); //acquires elock
 
+  lock_acquire (&cache_lock); //TODO remove and solve race
   if(is_cache_miss)
       block_read (fs_device, sector, cache_entry->data);
+  lock_release (&cache_lock);
 
   cache_entry->is_in_second_chance = false;
   cache_entry->readers ++;
@@ -330,7 +332,7 @@ static void bc_daemon_read_ahead(void *aux UNUSED)
                   block_read (fs_device, sector, cache_entry->data);
 
               cache_entry->is_in_second_chance = false;
-              lock_release(&cache_entry->elock);
+              lock_release (&cache_entry->elock);
 
               read_ahead [i] = EMPTY_SECTOR;
             }  

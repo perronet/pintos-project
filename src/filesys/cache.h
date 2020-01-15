@@ -2,7 +2,7 @@
 #include "threads/synch.h"
 #include <list.h>
 
-#define MAX_CACHE_SECTORS 300
+#define MAX_CACHE_SECTORS 64
 #define BC_DAEMON_FLUSH_SLEEP_MS 1000
 #define MAX_READ_AHEAD 10
 #define EMPTY_SECTOR SIZE_MAX
