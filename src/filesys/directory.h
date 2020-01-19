@@ -48,6 +48,7 @@ bool dir_readdir (struct dir *, char name[NAME_MAX + 1]);
 bool path_str_wellformed (const char *path_str);
 const char * get_path_last_entry (const char *path_str);
 bool get_path_entry (const char *path_str, int n, char *buffer);
+int get_path_entry_cnt (const char *path_str);
 struct dir* get_parent_directory (const char *path_str);
 struct dir* get_curr_working_dir(void);
 bool path_is_dir (const char *path_str);

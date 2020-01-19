@@ -132,8 +132,9 @@ dir_path_lookup (const char *path_str)
   struct dir *prev_working_dir = NULL;
   struct inode *inode = NULL;
   block_sector_t working_dir_sector;
-  const char *target = get_path_last_entry (path_str);
   char dir_entry_name[NAME_MAX + 1];
+  const char *target = get_path_last_entry (path_str);
+  int last_entry_idx = get_path_entry_cnt (path_str) - 1;
 
   if (path_str[0] == '/')
   { // Absolute path
@@ -147,7 +148,7 @@ dir_path_lookup (const char *path_str)
     working_dir = get_curr_working_dir ();
   }
 
-  for (int i = 0; strcmp (dir_entry_name, target); i++)
+  for (int i = 0; strcmp (dir_entry_name, target) || i <= last_entry_idx; i++)
   {
     get_path_entry (path_str, i, dir_entry_name);
 
@@ -168,7 +169,6 @@ dir_path_lookup (const char *path_str)
         return NULL;
       working_dir = dir_open (inode);
     }
-
     dir_close (prev_working_dir);
     prev_working_dir = working_dir;
   }
@@ -310,7 +310,7 @@ get_path_last_entry (const char *path_str)
 bool
 get_path_entry (const char *path_str, int n, char *buffer)
 {
-  char *save_ptr, *token, *cpy = calloc (strlen (buffer)+1, sizeof (char));
+  char *save_ptr, *token, *cpy = calloc (strlen (path_str)+1, sizeof (char));
   strlcpy (cpy, path_str, strlen (path_str)+1);
   int i = 0;
 
@@ -332,6 +332,24 @@ get_path_entry (const char *path_str, int n, char *buffer)
     free (cpy);
     return true;
   }
+}
+
+int
+get_path_entry_cnt (const char *path_str)
+{
+  char *save_ptr, *token, *cpy = calloc (strlen (path_str)+1, sizeof (char));
+  strlcpy (cpy, path_str, strlen (path_str)+1);
+  int cnt = 0;
+
+  token = strtok_r (cpy, "/", &save_ptr);
+  while (token != NULL)
+  {
+    token = strtok_r (NULL, "/", &save_ptr);
+    cnt++;
+  }
+
+  free (cpy);
+  return cnt;
 }
 
 /* Caller must close the returned open directory.
