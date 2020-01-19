@@ -110,10 +110,7 @@ dir_lookup_entry (const struct dir *dir, const char *name,
 {
   struct dir_entry e;
 
-  ASSERT (dir != NULL);
-  ASSERT (name != NULL);
-
-  if (lookup (dir, name, &e, NULL) && DIR_CHECK)
+  if (dir != NULL && name != NULL && lookup (dir, name, &e, NULL) && DIR_CHECK)
     *inode = inode_open (e.inode_sector);
   else
     *inode = NULL;
