@@ -118,6 +118,8 @@ inode_open (block_sector_t sector)
   list_push_front (&open_inodes, &inode->elem);
   inode->sector = sector;
   inode->open_cnt = 1;
+  inode->open_fd_cnt = 0;
+  inode->cwd_cnt = 0;
   inode->deny_write_cnt = 0;
   inode->removed = false;
   inode->data = NULL; //Lazy loaded

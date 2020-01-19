@@ -43,6 +43,7 @@ bool read_directory (int fd, char *name);
 bool is_directory (int fd);
 int fd_inode_number (int fd);
 bool is_dir_open_fd_global (struct dir *dir);
+bool is_dir_cwd_global (struct dir *dir);
 
 void lock_fs (void);
 void unlock_fs(void);

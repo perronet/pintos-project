@@ -66,7 +66,9 @@ change_directory(const char *dirpath)
   }
 
   old_dir = get_curr_working_dir ();
+  old_dir->inode->cwd_cnt--;
   dir_close (old_dir);
+  new_dir->inode->cwd_cnt++;
   thread_current ()->curr_dir = new_dir;
 
   unlock_fs ();
@@ -86,19 +88,9 @@ remove_file_or_dir(const char *path)
       /* Remove directory only if it's empty and it's not open
          with a file descriptor or a cwd of any process 
          (it's enough to check that there are zero openers) */
-        struct inode *dir_inode = dir_path_lookup (path);
-        struct dir *dir = dir_open (dir_inode);
-        if (dir_is_empty (dir))
-        {
-          dir_close (dir);
-          if (dir_inode->open_cnt == 0)
-          {
-            dir = dir_open (dir_inode);
-            ASSERT (!is_dir_open_fd_global (dir)) //TODO remove me, just a sanity check
-            dir_close (dir);
-            result = filesys_remove (path);
-          }
-        }
+        struct dir *dir = dir_open (dir_path_lookup (path));
+        if (dir_is_empty (dir) && !is_dir_open_fd_global (dir) && !is_dir_cwd_global (dir))
+          result = filesys_remove (path);
       }
       else
       {
@@ -156,6 +148,7 @@ open_file_or_dir(const char *path)
     {
       fd->open_file = NULL;
       fd->open_dir = dir;
+      dir->inode->open_fd_cnt++;
     }
     else
     {
@@ -325,9 +318,14 @@ close_open_file_or_dir (int fd_num)
   if (fd != NULL && fd->owner == thread_current ()->tid)
   {
     if (fd->is_dir)
+    {
+      fd->open_dir->inode->open_fd_cnt--;
       dir_close (fd->open_dir);
+    }
     else
+    {
       file_close(fd->open_file);
+    }
     
     list_remove (&fd->elem);      
     free(fd);
@@ -349,9 +347,14 @@ close_all_files_and_dir ()
       if (fd->owner == thread_current ()->tid)
         {
           if (fd->is_dir)
+          {
+            fd->open_dir->inode->open_fd_cnt--;
             dir_close (fd->open_dir);
+          }
           else
+          {
             file_close(fd->open_file);
+          }
           e = list_next(e);
           list_remove (&fd->elem);      
           free(fd);
@@ -402,19 +405,17 @@ fd_inode_number (int fd)
     return -1;
 }
 
-bool is_dir_open_fd_global (struct dir *dir) //TODO remove me
+bool is_dir_open_fd_global (struct dir *dir)
 {
-  struct list_elem *e;
-  e = list_tail (&open_files);
-  while ((e = list_prev (e)) != list_head (&open_files)) 
-    {
-      struct file_descriptor *fd;
-      fd = list_entry (e, struct file_descriptor, elem);
-      if (fd->is_dir && fd->open_dir == dir)
-        return true;
-    }
+  ASSERT (dir != NULL);
+  return (dir->inode->open_fd_cnt > 0);
+}
 
-  return false;
+bool 
+is_dir_cwd_global (struct dir *dir)
+{
+  ASSERT (dir != NULL);
+  return (dir->inode->cwd_cnt > 0);
 }
 
 void lock_fs ()
