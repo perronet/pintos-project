@@ -63,7 +63,7 @@ filesys_create (const char *path, off_t initial_size)
   success = free_map_allocate (1, &inode_sector);
   if (initial_size >= 0)
   {
-    success = success && inode_create (inode_sector, initial_size, parent_dir_sector); // Create file
+    success = success && inode_create (inode_sector, initial_size, parent_dir_sector, false); // Create file
     success = success && dir_add (parent_dir, last_entry, inode_sector, false);
   }
   else

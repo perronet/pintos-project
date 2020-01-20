@@ -14,7 +14,7 @@
 bool
 dir_create (block_sector_t sector, size_t initial_entry_cnt, block_sector_t parent)
 {
-  return inode_create (sector, initial_entry_cnt * sizeof (struct dir_entry), parent);
+  return inode_create (sector, initial_entry_cnt * sizeof (struct dir_entry), parent, false);
 }
 
 /* Opens and returns the directory for the given INODE, of which

@@ -52,7 +52,7 @@ inode_init (void)
    Returns true if successful.
    Returns false if memory or disk allocation fails. */
 bool
-inode_create (block_sector_t sector, off_t length, block_sector_t parent)
+inode_create (block_sector_t sector, off_t length, block_sector_t parent, bool is_index_block)
 {
   struct inode_disk *disk_inode = NULL;
   bool success = false;
@@ -66,23 +66,37 @@ inode_create (block_sector_t sector, off_t length, block_sector_t parent)
   disk_inode = calloc (1, sizeof *disk_inode);
   if (disk_inode != NULL)
     {
-      size_t sectors = bytes_to_sectors (length);
-      disk_inode->length = length;
-      disk_inode->parent = parent; 
-      disk_inode->magic = INODE_MAGIC;
-      if (free_map_allocate (sectors, &disk_inode->start)) 
+      if (is_index_block)
         {
+          disk_inode->parent = parent;
+          memset (disk_inode->index_block, 0, INDEX_BLOCK_ENTRIES*sizeof (uint32_t));
+          disk_inode->is_index_block = (uint32_t)is_index_block;
+          disk_inode->magic = INODE_MAGIC;
           bc_block_write (sector, disk_inode, 0, BLOCK_SECTOR_SIZE);
-          if (sectors > 0) 
+          success = true;
+        }
+      else
+        {
+          size_t sectors = bytes_to_sectors (length);
+          disk_inode->length = length;
+          disk_inode->parent = parent; 
+          memset (disk_inode->index, 0, INDEX_MAIN_ENTRIES*sizeof (uint32_t));
+          disk_inode->is_index_block = (uint32_t)is_index_block;
+          disk_inode->magic = INODE_MAGIC;
+          if (free_map_allocate (sectors, &disk_inode->start)) 
             {
-              static char zeros[BLOCK_SECTOR_SIZE];
-              size_t i;
-              
-              for (i = 0; i < sectors; i++) 
-                bc_block_write (disk_inode->start + i, zeros, 0, BLOCK_SECTOR_SIZE);
-            }
-          success = true; 
-        } 
+              bc_block_write (sector, disk_inode, 0, BLOCK_SECTOR_SIZE);
+              if (sectors > 0) 
+                {
+                  static char zeros[BLOCK_SECTOR_SIZE];
+                  size_t i;
+                  
+                  for (i = 0; i < sectors; i++) 
+                    bc_block_write (disk_inode->start + i, zeros, 0, BLOCK_SECTOR_SIZE);
+                }
+              success = true; 
+            } 
+        }
       free (disk_inode);
     }
   return success;
@@ -220,7 +234,7 @@ inode_remove (struct inode *inode)
    than SIZE if an error occurs or end of file is reached. */
 off_t
 inode_read_at (struct inode *inode, void *buffer_, off_t size, off_t offset) 
-{
+{ //TODO can read past EOF but returns no bytes
   inode_load_disk (inode);
 
   uint8_t *buffer = (uint8_t *)buffer_;
@@ -264,7 +278,7 @@ inode_read_at (struct inode *inode, void *buffer_, off_t size, off_t offset)
 off_t
 inode_write_at (struct inode *inode, const void *buffer_, off_t size,
                 off_t offset) 
-{
+{ //TODO implement file growth
   inode_load_disk (inode);
 
   uint8_t *buffer = (uint8_t *)buffer_;

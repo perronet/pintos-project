@@ -131,6 +131,7 @@ directory of the process. From here, at every iteration the working directory
 is changed, based on the current entry in the string, until the target directory 
 is reached. Special names in the string ("." "..") are treated as special 
 cases during the directory lookup: they are not actual entries in directories.
+Their only effect is to change the working directory during the lookup.
 For any other normal entry, a simple linear seach in the parent directory
 is performed.
 
