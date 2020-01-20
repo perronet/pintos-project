@@ -11,7 +11,7 @@
    This is the traditional UNIX maximum length.
    After directories are implemented, this maximum length may be
    retained, but much longer full path names must be allowed. */
-#define NAME_MAX 14
+#define NAME_MAX 64
 #define DIR_PATH_MAX 600
 #define DIR_INITIAL_SIZE 10
 
