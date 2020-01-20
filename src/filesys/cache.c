@@ -6,8 +6,12 @@
 #include "devices/timer.h"
 #include "cache.h"
 
-#define ENABLE_READ_AHEAD 
-#define ENABLE_PERIODIC_FLUSH 
+#define ENABLE_BUFFER_CACHE
+
+#ifdef ENABLE_BUFFER_CACHE
+  #define ENABLE_READ_AHEAD 
+  #define ENABLE_PERIODIC_FLUSH 
+#endif
 
 static void bc_flush (struct buffer_cache_entry *entry);
 bool bc_get_and_lock_entry (struct buffer_cache_entry **ref_entry, block_sector_t sector);
@@ -30,6 +34,7 @@ struct semaphore rh_sema;
 
 void bc_init ()
 {
+#ifdef ENABLE_BUFFER_CACHE
   for (int i = 0; i < MAX_CACHE_SECTORS; i++)
   {
     struct buffer_cache_entry *entry = &cache[i];
@@ -39,11 +44,11 @@ void bc_init ()
     entry->readers = 0;
     lock_init (&cache[i].elock);
   }
+#endif
 
   lock_init(&cache_lock);
   sema_init(&rh_sema, 0);
   daemon_started = false;
-
 }
 
 void bc_start_daemon ()
@@ -67,6 +72,7 @@ void bc_block_read (block_sector_t sector, void *buffer, off_t offset, off_t siz
 {
   ASSERT (offset + size <= BLOCK_SECTOR_SIZE);
 
+#ifdef ENABLE_BUFFER_CACHE
   struct buffer_cache_entry *cache_entry = NULL;
   bool is_cache_miss = bc_get_and_lock_entry (&cache_entry, sector); //acquires elock
 
@@ -84,6 +90,13 @@ void bc_block_read (block_sector_t sector, void *buffer, off_t offset, off_t siz
   lock_acquire(&cache_entry->elock);
   cache_entry->readers --; //entry will not be evicted, readers > 0
   lock_release(&cache_entry->elock);
+#else
+  lock_acquire(&cache_lock);
+  uint8_t *bounce = malloc (BLOCK_SECTOR_SIZE);
+  block_read (fs_device, sector, bounce);
+  memcpy (buffer, bounce + offset, size);
+  lock_release(&cache_lock);
+#endif
 }
 
 /* Guarantees to find and return an entry allocated for the given sector.
@@ -150,6 +163,7 @@ void bc_request_read_ahead (block_sector_t sector UNUSED /*when RH disabled*/)
 
 void bc_block_write (block_sector_t sector, void *buffer, off_t offset, off_t size)
 {
+#ifdef ENABLE_BUFFER_CACHE
   ASSERT (offset + size <= BLOCK_SECTOR_SIZE);
 
   struct buffer_cache_entry *cache_entry = NULL;
@@ -169,10 +183,23 @@ void bc_block_write (block_sector_t sector, void *buffer, off_t offset, off_t si
   memcpy (cache_entry->data + offset, buffer, size);
 
   lock_release(&cache_entry->elock);
+#else
+  lock_acquire(&cache_lock);
+  uint8_t *bounce = malloc (BLOCK_SECTOR_SIZE);
+  if (offset > 0 || size + offset < BLOCK_SECTOR_SIZE) 
+    block_read (fs_device, sector, bounce);
+  else
+    memset (bounce, 0, BLOCK_SECTOR_SIZE);
+
+  memcpy (bounce + offset, buffer, size);
+  block_write (fs_device, sector, bounce);
+  lock_release(&cache_lock);
+#endif
 }
 
 void bc_flush_all (void)
 {
+#ifdef ENABLE_BUFFER_CACHE
   lock_acquire(&cache_lock);
   int count = 0;
   for (int i = 0; i < MAX_CACHE_SECTORS; i++)
@@ -187,6 +214,7 @@ void bc_flush_all (void)
       lock_release (&entry->elock);
     }
   lock_release(&cache_lock);
+#endif
 }
 
 /* Get a fresh entry to use, either via allocating or 
@@ -256,8 +284,9 @@ static void bc_flush (struct buffer_cache_entry *entry)
   entry->is_dirty = false;
 }
 
-void bc_remove (block_sector_t sector)
+void bc_remove (block_sector_t sector UNUSED)
 {
+#ifdef ENABLE_BUFFER_CACHE
   lock_acquire(&cache_lock);
   for (int i = 0; i < MAX_CACHE_SECTORS; i++)
   {
@@ -273,6 +302,7 @@ void bc_remove (block_sector_t sector)
     }  
   }
   lock_release(&cache_lock);
+#endif
 }
 
 /* Call with cache lock ENABLED */
