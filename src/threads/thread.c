@@ -750,7 +750,10 @@ lookup_tid (tid_t tid)
     {
       struct thread *t = list_entry (e, struct thread, allelem);
       if (t->tid == tid)
+      {
+        intr_set_level (old_level);
         return t;
+      }
     }
   intr_set_level (old_level);
   

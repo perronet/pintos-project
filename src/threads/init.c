@@ -143,11 +143,6 @@ kernel_main (void)
   /* Run actions specified on kernel command line. */
   run_actions (argv);
 
-  //TODO check this hammer. May break stuff.
-  //Put here because we may need to sleep before shutting down, due to
-  //flush of the buffer cache
-  intr_enable(); 
-
   /* Finish up. */
   shutdown ();
   thread_exit ();
