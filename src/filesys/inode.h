@@ -17,7 +17,7 @@ struct bitmap;
 #define INDEX_MAIN_ENTRIES (DIRECT_BLOCKS + INDIRECT_BLOCKS + D_INDIRECT_BLOCKS)
 #define INDEX_BLOCK_ENTRIES 64
 #define UNUSED_SIZE (123-INDEX_MAIN_ENTRIES)
-#define SECTOR_ERROR (100000)
+#define SECTOR_ERROR (6666666)
 
 /* When accessing a sector number relative to an inode, each of these numbers 
    represent in which part of the table that sector should be looked for.
@@ -40,13 +40,13 @@ union index_table
    Must be exactly BLOCK_SECTOR_SIZE bytes long. */
 struct inode_disk
   {
-    block_sector_t start;               				/* First data sector. */
+    block_sector_t start;               	/* First data sector. */
     block_sector_t parent;								/* The directory containing the inode */
-    off_t length;                       				/* File size in bytes. */
+    off_t length;                       	/* File size in bytes. */
   	union index_table index;							/* Main index or supplementary index */
     uint32_t is_index_block;							/* Is it a normal data block or an index block? */
-    unsigned magic;                     			    /* Magic number. */
-    uint32_t unused[UNUSED_SIZE];    					/* Not used. */
+    unsigned magic;                     	/* Magic number. */
+    uint32_t unused[UNUSED_SIZE];    			/* Not used. */
   };
 
 /* In-memory inode. */
@@ -55,7 +55,7 @@ struct inode
     struct list_elem elem;              /* Element in inode list. */
     block_sector_t sector;              /* Sector number of disk location. */
     int open_cnt;                       /* Number of openers. */
-    int open_fd_cnt;					/* Number of open fds on this dir. */
+    int open_fd_cnt;					          /* Number of open fds on this dir. */
     int cwd_cnt;                        /* Number of processes that have this dir as cwd. */
     bool removed;                       /* True if deleted, false otherwise. */
     int deny_write_cnt;                 /* 0: writes ok, >0: deny writes. */

@@ -6,7 +6,7 @@
 #include "devices/timer.h"
 #include "cache.h"
 
-#define ENABLE_BUFFER_CACHE
+// #define ENABLE_BUFFER_CACHE
 
 #ifdef ENABLE_BUFFER_CACHE
   #define ENABLE_READ_AHEAD 
