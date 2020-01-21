@@ -32,6 +32,8 @@ Marco Perronet <perronet@mpi-sws.org>
 >> A2: What is the maximum size of a file supported by your inode
 >> structure?  Show your work.
 
+((11 + 65*64 + 3*64^2 - (1+65+3^2) )*512)/1024/1024
+
 ---- SYNCHRONIZATION ----
 
 >> A3: Explain how your code avoids a race if two processes attempt to

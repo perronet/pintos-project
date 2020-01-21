@@ -10,13 +10,31 @@ struct bitmap;
 
 /* Identifies an inode. */
 #define INODE_MAGIC 0x494e4f44
-#define DIRECT_BLOCKS 10
-#define INDIRECT_BLOCKS 20
-#define D_INDIRECT_BLOCKS 4
+#define DIRECT_BLOCKS 11
+#define INDIRECT_BLOCKS 65
+#define D_INDIRECT_BLOCKS 3
+#define METADATA_BLOCKS (1 + INDIRECT_BLOCKS + D_INDIRECT_BLOCKS * D_INDIRECT_BLOCKS)
 #define INDEX_MAIN_ENTRIES (DIRECT_BLOCKS + INDIRECT_BLOCKS + D_INDIRECT_BLOCKS)
 #define INDEX_BLOCK_ENTRIES 64
-#define UNUSED_SIZE (123-INDEX_MAIN_ENTRIES-INDEX_BLOCK_ENTRIES)
+#define UNUSED_SIZE (123-INDEX_MAIN_ENTRIES)
+#define SECTOR_ERROR (100000)
 
+/* When accessing a sector number relative to an inode, each of these numbers 
+   represent in which part of the table that sector should be looked for.
+   Another way to think of these: they are indexes that split the table. */
+#define INODE_ACCESS_DIRECT (DIRECT_BLOCKS - 1)
+#define INODE_ACCESS_INDIRECT \
+(INODE_ACCESS_DIRECT + (INDIRECT_BLOCKS * INDEX_BLOCK_ENTRIES)) // 4170
+#define INODE_ACCESS_MAX \
+(INODE_ACCESS_INDIRECT + \
+(D_INDIRECT_BLOCKS * INDEX_BLOCK_ENTRIES * INDEX_BLOCK_ENTRIES) \
+- METADATA_BLOCKS) // 16383
+
+union index_table
+  {
+    block_sector_t main_index[INDEX_MAIN_ENTRIES];		/* Main index of next blocks */
+    block_sector_t block_index[INDEX_BLOCK_ENTRIES];	/* Supplementary index if it is an index block */
+  };
 
 /* On-disk inode.
    Must be exactly BLOCK_SECTOR_SIZE bytes long. */
@@ -25,8 +43,7 @@ struct inode_disk
     block_sector_t start;               				/* First data sector. */
     block_sector_t parent;								/* The directory containing the inode */
     off_t length;                       				/* File size in bytes. */
-    block_sector_t index[INDEX_MAIN_ENTRIES];			/* Main index of next blocks */
-    block_sector_t index_block[INDEX_BLOCK_ENTRIES];	/* Supplementary index if it is an index block*/
+  	union index_table index;							/* Main index or supplementary index */
     uint32_t is_index_block;							/* Is it a normal data block or an index block? */
     unsigned magic;                     			    /* Magic number. */
     uint32_t unused[UNUSED_SIZE];    					/* Not used. */
@@ -58,5 +75,10 @@ off_t inode_write_at (struct inode *, const void *, off_t size, off_t offset);
 void inode_deny_write (struct inode *);
 void inode_allow_write (struct inode *);
 off_t inode_length (struct inode *);
+bool inode_grow (struct inode *inode, off_t size, off_t offset);
+block_sector_t write_create_sector (struct inode *inode, block_sector_t sector);
+block_sector_t lookup_real_sector_in_inode (const struct inode *inode, off_t pos, bool allocate_new);
+void allocate_new_block (block_sector_t *table, block_sector_t idx);
+void allocate_new_index_inode (block_sector_t *table, block_sector_t idx);
 
 #endif /* filesys/inode.h */
