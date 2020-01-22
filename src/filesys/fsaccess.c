@@ -320,7 +320,6 @@ close_open_file_or_dir (int fd_num)
     if (fd->is_dir)
     {
       fd->open_dir->inode->open_fd_cnt--;
-      dir_close (fd->open_dir);
     }
     else
     {
@@ -349,7 +348,6 @@ close_all_files_and_dir ()
           if (fd->is_dir)
           {
             fd->open_dir->inode->open_fd_cnt--;
-            dir_close (fd->open_dir);
           }
           else
           {

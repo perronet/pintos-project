@@ -92,7 +92,6 @@ filesys_open (const char *filepath)
 
   if (parent_dir != NULL)
     dir_lookup_entry (parent_dir, last_entry, &inode, false);
-  dir_close (parent_dir);
 
   return file_open (inode);
 }
@@ -111,7 +110,6 @@ filesys_remove (const char *path)
   struct dir *parent_dir = get_parent_directory (path);
 
   bool success = parent_dir != NULL && dir_remove (parent_dir, last_entry);
-  dir_close (parent_dir); 
 
   return success;
 }

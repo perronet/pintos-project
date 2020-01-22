@@ -76,7 +76,7 @@ void bc_block_read (block_sector_t sector, void *buffer, off_t offset, off_t siz
   struct buffer_cache_entry *cache_entry = NULL;
   bool is_cache_miss = bc_get_and_lock_entry (&cache_entry, sector); //acquires elock
 
-  lock_acquire (&cache_lock); //TODO remove and solve race
+  lock_acquire (&cache_lock); 
   if(is_cache_miss)
       block_read (fs_device, sector, cache_entry->data);
   lock_release (&cache_lock);
