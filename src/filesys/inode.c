@@ -233,6 +233,7 @@ void
 inode_load_disk (struct inode *inode)
 {
   printf("Loading inode located in sector %d\n", inode->sector);
+  ASSERT (inode->data == NULL);
   if (inode->data == NULL)
     {
       inode->data = malloc (sizeof (struct inode_disk));
@@ -245,6 +246,7 @@ inode_load_disk (struct inode *inode)
 void 
 inode_release_disk (struct inode *inode)
 {
+  ASSERT (inode->data != NULL);
   if (inode->data != NULL)
     {
       bc_block_write (inode->sector, inode->data, 0, BLOCK_SECTOR_SIZE);
@@ -277,10 +279,13 @@ inode_read_at (struct inode *inode, void *buffer_, off_t size, off_t offset)
     {
       /* Disk sector to read, starting byte offset within sector. */
       block_sector_t sector_idx = byte_to_sector (inode, offset);
-      int sector_ofs = offset % BLOCK_SECTOR_SIZE;
+      if (sector_idx == SECTOR_ERROR)
+        break;
+      printf("After byte_to_sector 2\n");
 
       /* Bytes left in inode, bytes left in sector, lesser of the two. */
-      off_t inode_left = inode_length (inode) - offset;
+      int sector_ofs = offset % BLOCK_SECTOR_SIZE;
+      off_t inode_left = inode->data->length - offset;
       int sector_left = BLOCK_SECTOR_SIZE - sector_ofs;
       int min_left = inode_left < sector_left ? inode_left : sector_left;
 
@@ -324,16 +329,18 @@ inode_write_at (struct inode *inode, const void *buffer_, off_t size,
     {
       /* Sector to write, starting byte offset within sector. */
       block_sector_t sector_idx = byte_to_sector (inode, offset);
+      printf("After byte_to_sector 1\n");
       int sector_ofs = offset % BLOCK_SECTOR_SIZE;
 
       if (sector_idx == SECTOR_ERROR) // Read past end of inode
         {
           inode_grow (inode, size, offset);
           sector_idx = byte_to_sector (inode, offset);
+          printf("After byte_to_sector 3\n");
         }
 
       /* Bytes left in inode, bytes left in sector, lesser of the two. */
-      off_t inode_left = inode_length (inode) - offset;
+      off_t inode_left = inode->data->length - offset;
       int sector_left = BLOCK_SECTOR_SIZE - sector_ofs;
       int min_left = inode_left < sector_left ? inode_left : sector_left;
 
@@ -351,7 +358,9 @@ inode_write_at (struct inode *inode, const void *buffer_, off_t size,
       bytes_written += chunk_size;
     }
 
+  printf("Before panic\n");
   inode_release_disk (inode);
+  printf("After panic\n");
 
   return bytes_written;
 }
@@ -383,8 +392,9 @@ off_t
 inode_length (struct inode *inode)
 {
   inode_load_disk (inode);
-  return inode->data->length;
+  off_t r = inode->data->length;
   inode_release_disk (inode);
+  return r;
 }
 
 bool inode_grow (struct inode *inode, off_t size, off_t offset)
