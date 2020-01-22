@@ -3,21 +3,26 @@
 #include <debug.h>
 #include <round.h>
 #include <string.h>
+#include <stdio.h>
 #include "filesys/filesys.h"
 #include "filesys/free-map.h"
 #include "filesys/cache.h"
 #include "threads/malloc.h"
 
+
 //allocate block sector or normal sector
 #define CHECK_ALLOCATE_AND_GET_SECTOR(table, idx, is_index_block)\
 ({\
-    if (allocate_new && is_index_block)\
-      allocate_new_index_inode (table, idx);\
-    if (allocate_new && !is_index_block)\
-      allocate_new_block (table, idx);\
+    if (allocate_new && table[idx] == SECTOR_ERROR)\
+      {\
+        if (is_index_block)\
+          allocate_new_index_inode (table, idx);\
+        else\
+          allocate_new_block (table, idx);\
+      }\
     block_sector_t ret = table[idx];\
-    if (ret == SECTOR_ERROR)\
-      return ret;\
+    if (!allocate_new && ret == SECTOR_ERROR)\
+      return SECTOR_ERROR;\
     ret;\
 })
 
@@ -53,7 +58,7 @@ byte_to_sector (const struct inode *inode, off_t pos)
   block_sector_t sector = SECTOR_ERROR;
 
   if (pos < inode->data->length)
-    sector = lookup_real_sector_in_inode (inode, pos, false);
+    sector = inode_pos_to_real_sector (inode, pos, false);
 
   return sector;
 }
@@ -93,7 +98,7 @@ inode_create (block_sector_t sector, off_t length, block_sector_t parent, bool i
       if (is_index_block)
         {
           for (int i = 0; i < INDEX_BLOCK_ENTRIES; i++)
-            allocate_new_block (disk_inode->index.block_index, i);
+            disk_inode->index.block_index[i] = SECTOR_ERROR;
           disk_inode->is_index_block = (uint32_t)is_index_block;
           disk_inode->magic = INODE_MAGIC;
           // Write block for inode
@@ -102,18 +107,27 @@ inode_create (block_sector_t sector, off_t length, block_sector_t parent, bool i
         }
       else
         {
-          // Initialize inode with length 0 and all index entries empty
-          disk_inode->length = 0;
-          disk_inode->parent = parent; 
-          for (int i = 0; i < INDEX_MAIN_ENTRIES; i++)
+          // Nothing is allocated yet: allocate first sector to have a starting position
+          disk_inode->start = allocate_new_block (disk_inode->index.main_index, 0);
+          // All other blocks are empty
+          for (int i = 1; i < INDEX_MAIN_ENTRIES; i++)
             disk_inode->index.main_index[i] = SECTOR_ERROR;
+
+          // Set length based on the fact that the first block is allocated
+          if (length >= BLOCK_SECTOR_SIZE)
+            disk_inode->length = BLOCK_SECTOR_SIZE;
+          else
+            disk_inode->length = length;
+
+          disk_inode->parent = parent; 
           disk_inode->is_index_block = (uint32_t)is_index_block;
-          disk_inode->magic = INODE_MAGIC; 
+          disk_inode->magic = INODE_MAGIC;
+
           // Write block for inode
           bc_block_write (sector, disk_inode, 0, BLOCK_SECTOR_SIZE);
 
-          // Grow inode to desired initial size (Allocates non-contiguously)
-          if (length > 0)
+          // If bigger than one block, grow inode to desired initial size (Allocates non-contiguously)
+          if (length > BLOCK_SECTOR_SIZE)
             {
               inode = inode_open (sector);
               inode_load_disk (inode);
@@ -226,8 +240,7 @@ inode_close (struct inode *inode)
 void
 inode_load_disk (struct inode *inode)
 {
-  ASSERT (inode->data == NULL);
-  if (inode->data == NULL)
+  if (inode->data == NULL) //Don't re-load
     {
       inode->data = malloc (sizeof (struct inode_disk));
       if (inode->data == NULL) 
@@ -239,8 +252,7 @@ inode_load_disk (struct inode *inode)
 void 
 inode_release_disk (struct inode *inode)
 {
-  ASSERT (inode->data != NULL);
-  if (inode->data != NULL)
+  if (inode->data != NULL) // Don't re-flush
     {
       bc_block_write (inode->sector, inode->data, 0, BLOCK_SECTOR_SIZE);
       free(inode->data);
@@ -308,7 +320,7 @@ inode_read_at (struct inode *inode, void *buffer_, off_t size, off_t offset)
 off_t
 inode_write_at (struct inode *inode, const void *buffer_, off_t size,
                 off_t offset) 
-{ //TODO implement file growth
+{
   inode_load_disk (inode);
 
   uint8_t *buffer = (uint8_t *)buffer_;
@@ -385,36 +397,48 @@ inode_length (struct inode *inode)
   return r;
 }
 
+// Assumes that the starting sector is already allocated
+// Assumes that the byte "inode->data->length" is in the last sector of the inode;
 bool inode_grow (struct inode *inode, off_t size, off_t offset)
 {
-  ASSERT (offset >= inode->data->length);
-  block_sector_t eof_sector = inode->data->start + bytes_to_sectors (inode->data->length) - 1;
-  size_t gap = bytes_to_sectors (offset) - eof_sector - 1;
-  size_t grow_len = gap + bytes_to_sectors (size);
+  ASSERT (size > 0);
+  ASSERT (offset + size > round_up_to_sector_boundary (inode->data->length));
+  block_sector_t last_sector;
+  off_t grow_len_bytes;
+  size_t grow_len;
+  //inode_length 0 ofset 0 size 1
+  if (inode->data->length <= BLOCK_SECTOR_SIZE)
+    last_sector = inode->data->start;
+  else
+    last_sector = inode->data->start + bytes_to_sectors (inode->data->length) - 1;
+  grow_len_bytes = offset + size - round_up_to_sector_boundary (inode->data->length);
+  grow_len = bytes_to_sectors (grow_len_bytes);
+  ASSERT (grow_len > 0);
 
   for (size_t i = 1; i <= grow_len; i++)
-    if(write_create_sector(inode, eof_sector + i) == SECTOR_ERROR)
+  {
+    if(write_create_sector(inode, last_sector + i) == SECTOR_ERROR)
       return false;
+  }
 
-  inode->data->length = inode->data->length + sectors_to_bytes (grow_len);
+  inode->data->length = inode->data->length + grow_len_bytes;
   return true;
 }
 
 block_sector_t write_create_sector (struct inode *inode, block_sector_t sector)
 {
   block_sector_t sector_inode_relative = sector - inode->data->start;
-  return lookup_real_sector_in_inode (inode, sectors_to_bytes (sector_inode_relative), true);
+  return inode_pos_to_real_sector (inode, sectors_to_bytes (sector_inode_relative), true);
 }
 
 /* Returns SECTOR_ERROR if the sector needs to be allocated */
-block_sector_t lookup_real_sector_in_inode (const struct inode *inode, off_t pos, bool allocate_new)
+block_sector_t inode_pos_to_real_sector (const struct inode *inode, off_t pos, bool allocate_new)
 {
   ASSERT (inode != NULL);
   ASSERT (pos >= 0);
   block_sector_t sector = SECTOR_ERROR;
   struct inode *index_inode, *d_index_inode;
   block_sector_t main_idx, inner_idx, d_inner_idx, offset_mult_64, offset_mult_4096, start;
-  block_sector_t n, d;
 
   block_sector_t sector_inode_relative = pos / BLOCK_SECTOR_SIZE;
 
@@ -426,9 +450,7 @@ block_sector_t lookup_real_sector_in_inode (const struct inode *inode, off_t pos
           sector_inode_relative <= INODE_ACCESS_INDIRECT)
     { /* Lookup in indirect tables */
       // Normalize to [INODE_ACCESS_DIRECT+1 .. INODE_ACCESS_INDIRECT]
-      n = sector_inode_relative - (INODE_ACCESS_DIRECT);
-      d = (INODE_ACCESS_INDIRECT) - (INODE_ACCESS_DIRECT);
-      main_idx = ROUND_UP (DIRECT_BLOCKS + ((n / d) * INDIRECT_BLOCKS), 1);
+      main_idx = DIV_ROUND_UP (sector_inode_relative - INODE_ACCESS_DIRECT, INDEX_BLOCK_ENTRIES) + INODE_ACCESS_DIRECT;
 
       //Find index inode sector
       sector = CHECK_ALLOCATE_AND_GET_SECTOR (inode->data->index.main_index, main_idx, true); 
@@ -451,9 +473,7 @@ block_sector_t lookup_real_sector_in_inode (const struct inode *inode, off_t pos
           sector_inode_relative <= INODE_ACCESS_MAX)
     { /* Lookup in doubly indirect tables */
       // Normalize to [INODE_ACCESS_INDIRECT+1 .. INODE_ACCESS_MAX]
-      n = sector_inode_relative - (INODE_ACCESS_INDIRECT);
-      d = (INODE_ACCESS_MAX) - (INODE_ACCESS_INDIRECT);
-      main_idx = ROUND_UP (INODE_ACCESS_INDIRECT + ((n / d) * D_INDIRECT_BLOCKS), 1);
+      main_idx = DIV_ROUND_UP (sector_inode_relative - INODE_ACCESS_INDIRECT, INDEX_BLOCK_ENTRIES*INDEX_BLOCK_ENTRIES) + INODE_ACCESS_INDIRECT;
 
       //Find index inode sector
       sector = CHECK_ALLOCATE_AND_GET_SECTOR (inode->data->index.main_index, main_idx, true);
@@ -467,6 +487,7 @@ block_sector_t lookup_real_sector_in_inode (const struct inode *inode, off_t pos
       offset_mult_4096 = (start + (INDEX_BLOCK_ENTRIES * INDEX_BLOCK_ENTRIES * (main_idx - start)));
       // [0..4097]
       inner_idx = sector_inode_relative - offset_mult_4096;
+      // inner_idx = DIV_ROUND_UP (sector_inode_relative - INODE_ACCESS_INDIRECT, INDEX_BLOCK_ENTRIES) + INODE_ACCESS_INDIRECT;
       
       //Find double index inode sector
       sector = CHECK_ALLOCATE_AND_GET_SECTOR (index_inode->data->index.block_index, inner_idx, true);
@@ -494,7 +515,8 @@ block_sector_t lookup_real_sector_in_inode (const struct inode *inode, off_t pos
   return sector;
 }
 
-void allocate_new_block (block_sector_t *table, block_sector_t idx)
+// Allocates block and sets entry in inode index
+block_sector_t allocate_new_block (block_sector_t *table, block_sector_t idx)
 {
   static char zeros[BLOCK_SECTOR_SIZE];
   block_sector_t allocated_sector = 0;
@@ -502,14 +524,23 @@ void allocate_new_block (block_sector_t *table, block_sector_t idx)
     PANIC ("Out of memory!");
   bc_block_write (allocated_sector, zeros, 0, BLOCK_SECTOR_SIZE);
   table[idx] = allocated_sector;
+
+  return allocated_sector;
 }
 
-void allocate_new_index_inode (block_sector_t *table, block_sector_t idx)
+// Allocates index inode and sets entry in inode index
+block_sector_t allocate_new_index_inode (block_sector_t *table, block_sector_t idx)
 {
   block_sector_t allocated_sector = 0;
   if (!free_map_allocate (1, &allocated_sector))
     PANIC ("Out of memory!");
   inode_create (allocated_sector, 0, 0, true);
   table[idx] = allocated_sector;
+
+  return allocated_sector;
 }
 
+off_t round_up_to_sector_boundary (off_t bytes)
+{
+  return sectors_to_bytes (bytes_to_sectors (bytes));
+}

@@ -68,7 +68,7 @@ filesys_create (const char *path, off_t initial_size)
   }
   else
   {                  
-    success = success && dir_create (inode_sector, DIR_INITIAL_SIZE, parent_dir_sector); // Create folder
+    success = success && dir_create (inode_sector, DIR_INITIAL_SIZE, parent_dir_sector); // Create directory
     success = success && dir_add (parent_dir, last_entry, inode_sector, true);
   }
 
