@@ -50,6 +50,7 @@ filesys_done (void)
 bool
 filesys_create (const char *path, off_t initial_size) 
 {
+  printf("CREATING...\n");
   const char *last_entry = get_path_last_entry (path);
   block_sector_t inode_sector = 0;
   block_sector_t parent_dir_sector;
@@ -120,7 +121,7 @@ filesys_remove (const char *path)
 static void
 do_format (void)
 {
-  printf ("Formatting file system...");
+  printf ("Formatting file system...\n");
   free_map_create ();
   if (!dir_create (ROOT_DIR_SECTOR, 16, ROOT_DIR_SECTOR))
     PANIC ("root directory creation failed");

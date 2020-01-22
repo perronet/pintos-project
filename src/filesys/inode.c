@@ -3,6 +3,7 @@
 #include <debug.h>
 #include <round.h>
 #include <string.h>
+#include <stdio.h>
 #include "filesys/filesys.h"
 #include "filesys/free-map.h"
 #include "filesys/cache.h"
@@ -52,8 +53,12 @@ byte_to_sector (const struct inode *inode, off_t pos)
   ASSERT (inode != NULL);
   block_sector_t sector = SECTOR_ERROR;
 
+  printf("byte_to_sector: inode %d offset %d. Inode length is %d\n", inode->sector, pos, inode->data->length);
+
   if (pos < inode->data->length)
     sector = lookup_real_sector_in_inode (inode, pos, false);
+
+  printf("byte_to_sector: result is %d\n", sector);
 
   return sector;
 }
@@ -77,6 +82,7 @@ inode_init (void)
 bool
 inode_create (block_sector_t sector, off_t length, block_sector_t parent, bool is_index_block)
 {
+  printf("Creating inode in sector %d of length %d\n", sector, length);
   struct inode_disk *disk_inode = NULL;
   struct inode *inode = NULL;
   bool success = false;
@@ -226,6 +232,7 @@ inode_close (struct inode *inode)
 void
 inode_load_disk (struct inode *inode)
 {
+  printf("Loading inode located in sector %d\n", inode->sector);
   if (inode->data == NULL)
     {
       inode->data = malloc (sizeof (struct inode_disk));
@@ -304,9 +311,9 @@ inode_read_at (struct inode *inode, void *buffer_, off_t size, off_t offset)
 off_t
 inode_write_at (struct inode *inode, const void *buffer_, off_t size,
                 off_t offset) 
-{ //TODO implement file growth
+{
+  printf("inode_write_at: Writing in inode in sector %d at offset %d size %d\n", inode->sector, offset, size);
   inode_load_disk (inode);
-
   uint8_t *buffer = (uint8_t *)buffer_;
   off_t bytes_written = 0;
 
@@ -382,6 +389,7 @@ inode_length (struct inode *inode)
 
 bool inode_grow (struct inode *inode, off_t size, off_t offset)
 {
+  printf("TIME TO GROW_________offset %d size %d inode length %d\n", offset, size, inode->data->length);
   ASSERT (offset >= inode->data->length);
   block_sector_t eof_sector = inode->data->start + bytes_to_sectors (inode->data->length) - 1;
   size_t gap = bytes_to_sectors (offset) - eof_sector - 1;
@@ -413,6 +421,8 @@ block_sector_t lookup_real_sector_in_inode (const struct inode *inode, off_t pos
 
   block_sector_t sector_inode_relative = pos / BLOCK_SECTOR_SIZE;
 
+  printf("lookup_real_sector_in_inode: Looking up realtive sector %d\n", sector_inode_relative);
+
   if (sector_inode_relative <= INODE_ACCESS_DIRECT)
     {/* Normal lookup */
       sector = CHECK_ALLOCATE_AND_GET_SECTOR (inode->data->index.main_index, sector_inode_relative, false);
@@ -431,8 +441,9 @@ block_sector_t lookup_real_sector_in_inode (const struct inode *inode, off_t pos
       index_inode = inode_open (sector);
       ASSERT (index_inode != NULL);
       inode_load_disk (index_inode);
+      printf("is index block? %d\n", index_inode->data->is_index_block);
       ASSERT (index_inode->data->is_index_block);
-
+      printf("MAIN INDEX %d\n", main_idx);
       start = DIRECT_BLOCKS;
       offset_mult_64 = (start + (INDEX_BLOCK_ENTRIES * (main_idx - start)));
       // [0..63]
@@ -440,6 +451,7 @@ block_sector_t lookup_real_sector_in_inode (const struct inode *inode, off_t pos
 
       sector = CHECK_ALLOCATE_AND_GET_SECTOR (index_inode->data->index.block_index, inner_idx, false);
 
+      printf("MAIN INDEX %d INNER INDEX %d\n", main_idx, inner_idx);
       inode_release_disk (index_inode);
     }
   else if (INODE_ACCESS_INDIRECT+1 <= sector_inode_relative &&
