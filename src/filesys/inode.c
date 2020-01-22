@@ -402,33 +402,36 @@ inode_length (struct inode *inode)
 bool inode_grow (struct inode *inode, off_t size, off_t offset)
 {
   ASSERT (size > 0);
-  ASSERT (offset + size > round_up_to_sector_boundary (inode->data->length));
-  block_sector_t last_sector;
-  off_t grow_len_bytes;
-  size_t grow_len;
-  //inode_length 0 ofset 0 size 1
-  if (inode->data->length <= BLOCK_SECTOR_SIZE)
-    last_sector = inode->data->start;
+  block_sector_t sector_inode_relative;
+
+  if (offset + size > round_up_to_sector_boundary (inode->data->length))
+    { // Actually allocate more sectors
+      block_sector_t last_sector;  
+      off_t grow_len_bytes;
+      size_t grow_len;
+      if (inode->data->length <= BLOCK_SECTOR_SIZE)
+        last_sector = inode->data->start;
+      else
+        last_sector = inode->data->start + bytes_to_sectors (inode->data->length) - 1;
+      grow_len_bytes = offset + size - round_up_to_sector_boundary (inode->data->length);
+      grow_len = bytes_to_sectors (grow_len_bytes);
+      ASSERT (grow_len > 0);
+
+      for (size_t i = 1; i <= grow_len; i++)
+      {
+        sector_inode_relative = last_sector + i - inode->data->start;
+        if(inode_pos_to_real_sector (inode, sectors_to_bytes (sector_inode_relative), true) == SECTOR_ERROR)
+          return false;
+      }
+
+      inode->data->length = inode->data->length + grow_len_bytes;
+    }
   else
-    last_sector = inode->data->start + bytes_to_sectors (inode->data->length) - 1;
-  grow_len_bytes = offset + size - round_up_to_sector_boundary (inode->data->length);
-  grow_len = bytes_to_sectors (grow_len_bytes);
-  ASSERT (grow_len > 0);
+    { // Just grow inode length value
+      inode->data->length = offset + size; 
+    }
 
-  for (size_t i = 1; i <= grow_len; i++)
-  {
-    if(write_create_sector(inode, last_sector + i) == SECTOR_ERROR)
-      return false;
-  }
-
-  inode->data->length = inode->data->length + grow_len_bytes;
   return true;
-}
-
-block_sector_t write_create_sector (struct inode *inode, block_sector_t sector)
-{
-  block_sector_t sector_inode_relative = sector - inode->data->start;
-  return inode_pos_to_real_sector (inode, sectors_to_bytes (sector_inode_relative), true);
 }
 
 /* Returns SECTOR_ERROR if the sector needs to be allocated */

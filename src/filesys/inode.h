@@ -76,7 +76,6 @@ void inode_deny_write (struct inode *);
 void inode_allow_write (struct inode *);
 off_t inode_length (struct inode *);
 bool inode_grow (struct inode *inode, off_t size, off_t offset);
-block_sector_t write_create_sector (struct inode *inode, block_sector_t sector);
 block_sector_t inode_pos_to_real_sector (const struct inode *inode, off_t pos, bool allocate_new);
 block_sector_t allocate_new_block (block_sector_t *table, block_sector_t idx);
 block_sector_t allocate_new_index_inode (block_sector_t *table, block_sector_t idx);
