@@ -93,8 +93,12 @@ void bc_block_read (block_sector_t sector, void *buffer, off_t offset, off_t siz
 #else
   lock_acquire(&cache_lock);
   uint8_t *bounce = malloc (BLOCK_SECTOR_SIZE);
+  if (bounce == NULL)
+    PANIC ("Malloc failed!");
+  
   block_read (fs_device, sector, bounce);
   memcpy (buffer, bounce + offset, size);
+  free (bounce);
   lock_release(&cache_lock);
 #endif
 }
@@ -186,13 +190,17 @@ void bc_block_write (block_sector_t sector, void *buffer, off_t offset, off_t si
 #else
   lock_acquire(&cache_lock);
   uint8_t *bounce = malloc (BLOCK_SECTOR_SIZE);
-  if (offset > 0 || size + offset < BLOCK_SECTOR_SIZE) 
+  if (bounce == NULL)
+    PANIC ("Malloc failed!");
+
+  if (offset > 0 || size + offset < BLOCK_SECTOR_SIZE)
     block_read (fs_device, sector, bounce);
   else
     memset (bounce, 0, BLOCK_SECTOR_SIZE);
 
   memcpy (bounce + offset, buffer, size);
   block_write (fs_device, sector, bounce);
+  free (bounce);
   lock_release(&cache_lock);
 #endif
 }
