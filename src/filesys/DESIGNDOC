@@ -29,15 +29,71 @@ Marco Perronet <perronet@mpi-sws.org>
 >> `struct' member, global or static variable, `typedef', or
 >> enumeration.  Identify the purpose of each in 25 words or less.
 
+/* Identifies an inode. */
+#define INODE_MAGIC 0x494e4f44
+#define DIRECT_BLOCKS 11
+#define INDIRECT_BLOCKS 65
+#define D_INDIRECT_BLOCKS 3
+#define METADATA_BLOCKS (1 + INDIRECT_BLOCKS + D_INDIRECT_BLOCKS * D_INDIRECT_BLOCKS)
+#define INDEX_MAIN_ENTRIES (DIRECT_BLOCKS + INDIRECT_BLOCKS + D_INDIRECT_BLOCKS)
+#define INDEX_BLOCK_ENTRIES 64
+#define UNUSED_SIZE (123-INDEX_MAIN_ENTRIES)
+#define SECTOR_ERROR (6666666)
+
+/* When accessing a sector number relative to an inode, each of these numbers 
+   represent in which part of the table that sector should be looked for.
+   Another way to think of these: they are indexes that split the table. */
+#define INODE_ACCESS_DIRECT (DIRECT_BLOCKS - 1)
+#define INODE_ACCESS_INDIRECT \
+(INODE_ACCESS_DIRECT + (INDIRECT_BLOCKS * INDEX_BLOCK_ENTRIES)) // 4170
+#define INODE_ACCESS_MAX \
+(INODE_ACCESS_INDIRECT + \
+(D_INDIRECT_BLOCKS * INDEX_BLOCK_ENTRIES * INDEX_BLOCK_ENTRIES) \
+- METADATA_BLOCKS) // 16383
+
+union index_table
+  {
+    block_sector_t main_index[INDEX_MAIN_ENTRIES];		/* Main index of next blocks */
+    block_sector_t block_index[INDEX_BLOCK_ENTRIES];	/* Supplementary index if it is an index block */
+  };
+
+/* On-disk inode.
+   Must be exactly BLOCK_SECTOR_SIZE bytes long. */
+struct inode_disk
+  {
+    block_sector_t start;               	/* First data sector. */
+    block_sector_t parent;								/* The directory containing the inode */
+    off_t length;                       	/* File size in bytes. */
+  	union index_table index;							/* Main index or supplementary index */
+    uint32_t is_index_block;							/* Is it a normal data block or an index block? */
+    unsigned magic;                     	/* Magic number. */
+    uint32_t unused[UNUSED_SIZE];    			/* Not used. */
+  };
+
 >> A2: What is the maximum size of a file supported by your inode
 >> structure?  Show your work.
 
-((11 + 65*64 + 3*64^2 - (1+65+3^2) )*512)/1024/1024
+We implemented a multilevel index. By choosing the appropriate values for the
+following variables, a file can be exactly at most 8MB in size. The variables 
+are parametrized in the actual implementation through #define, it's then possible
+to tweak them to change the maximum file size.
+
+x = 11. Number of direct blocks in the main table of an inode (DIRECT_BLOCKS)
+y = 65. Number of indirect blocks in the main table of an inode (INDIRECT_BLOCKS)
+z = 3. Number of doubly indirect blocks in the main table of an inode (D_INDIRECT_BLOCKS)
+e = 64. Number of entries in an index inode, which is an inode that has a table
+of other inodes, used for indirection (INDEX_BLOCK_ENTRIES)
+
+total_blocks = x + y*e + z*e^2
+metadata_blocks = 1 + y + z^2
+memory_blocks = total_blocks - metadata_blocks = 16384 (8MB)
 
 ---- SYNCHRONIZATION ----
 
 >> A3: Explain how your code avoids a race if two processes attempt to
 >> extend a file at the same time.
+
+TODO
 
 >> A4: Suppose processes A and B both have file F open, both
 >> positioned at end-of-file.  If A reads and B writes F at the same
@@ -46,12 +102,16 @@ Marco Perronet <perronet@mpi-sws.org>
 >> nonzero data, A is not allowed to see all zeros.  Explain how your
 >> code avoids this race.
 
+TODO
+
 >> A5: Explain how your synchronization design provides "fairness".
 >> File access is "fair" if readers cannot indefinitely block writers
 >> or vice versa.  That is, many processes reading from a file cannot
 >> prevent forever another process from writing the file, and many
 >> processes writing to a file cannot prevent another process forever
 >> from reading the file.
+
+TODO
 
 ---- RATIONALE ----
 
@@ -60,6 +120,25 @@ Marco Perronet <perronet@mpi-sws.org>
 >> indirect blocks?  If not, why did you choose an alternative inode
 >> structure, and what advantages and disadvantages does your
 >> structure have, compared to a multilevel index?
+
+The distribution of the blocks is based under the assumption that most 
+files will have a medium size, and that there will be very few large
+files. For this reason, the divison of blocks is the following:
+
+11 DIRECT_BLOCKS
+65 INDIRECT_BLOCKS
+3 D_INDIRECT_BLOCKS
+
+Indirect blocks point to index inode blocks, rather than normal inodes.
+These blocks contain a table of addresses of inodes or other index inodes.
+The two types of inodes can be distinguished with the flag is_index_block:
+depending on its value, "index" can be either a "main_index" (normal inodes)
+or a "block_index" (index inodes).
+The number of entries in the main index depend on the indirect block distribution,
+while the entries in index inodes are set to 64 (parameter INDEX_BLOCK_ENTRIES).
+Files that are 11 or less blocks in size can be accessed directly 
+without any level of indirection, it is assumed that small files are
+fairly common among files.
 
 			    SUBDIRECTORIES
 			    ==============
@@ -86,15 +165,23 @@ struct dir_entry
     bool is_dir;                        /* Is a directory or a file? */
   };
 
+union index_table
+  {
+    block_sector_t main_index[INDEX_MAIN_ENTRIES];		/* Main index of next blocks */
+    block_sector_t block_index[INDEX_BLOCK_ENTRIES];	/* Supplementary index if it is an index block */
+  };
+
 /* On-disk inode.
    Must be exactly BLOCK_SECTOR_SIZE bytes long. */
 struct inode_disk
   {
-    block_sector_t start;               /* First data sector. */
-    block_sector_t parent;				/* The directory containing the inode */
-    off_t length;                       /* File size in bytes. */
-    unsigned magic;                     /* Magic number. */
-    uint32_t unused[124];               /* Not used. */
+    block_sector_t start;               	/* First data sector. */
+    block_sector_t parent;								/* The directory containing the inode */
+    off_t length;                       	/* File size in bytes. */
+  	union index_table index;							/* Main index or supplementary index */
+    uint32_t is_index_block;							/* Is it a normal data block or an index block? */
+    unsigned magic;                     	/* Magic number. */
+    uint32_t unused[UNUSED_SIZE];    			/* Not used. */
   };
 
 /* In-memory inode. */
@@ -103,7 +190,7 @@ struct inode
     struct list_elem elem;              /* Element in inode list. */
     block_sector_t sector;              /* Sector number of disk location. */
     int open_cnt;                       /* Number of openers. */
-    int open_fd_cnt;					/* Number of open fds on this dir. */
+    int open_fd_cnt;					          /* Number of open fds on this dir. */
     int cwd_cnt;                        /* Number of processes that have this dir as cwd. */
     bool removed;                       /* True if deleted, false otherwise. */
     int deny_write_cnt;                 /* 0: writes ok, >0: deny writes. */
@@ -184,13 +271,12 @@ struct dir*, which is used to represent open directories.
 struct buffer_cache_entry
 {
 	block_sector_t sector;              /* Sector number of disk location. */
-	char data [BLOCK_SECTOR_SIZE];		/* Data contained in the cache */
-	bool is_in_second_chance;			/* Whether the entry is in second chance */			
-	bool is_dirty;						/* Whether the entry is in second dirty */			
+	char data [BLOCK_SECTOR_SIZE];		  /* Data contained in the cache */
+	bool is_in_second_chance;			      /* Whether the entry is in second chance */			
+	bool is_dirty;						          /* Whether the entry is in second dirty */			
 
 	struct list_elem elem;              /* List element. */
 };
-
 
 ---- ALGORITHMS ----
 
