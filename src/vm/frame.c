@@ -8,6 +8,7 @@
 
 static struct hash frame_hash;
 static struct lock frame_hash_lock;
+static struct lock frame_fs_lock;
 
 unsigned find_frame (const struct hash_elem *e, void *aux UNUSED)
 {
@@ -26,6 +27,7 @@ void vm_frame_alloc_init ()
 {
   hash_init (&frame_hash, find_frame, compare_frame, NULL);
   lock_init (&frame_hash_lock);
+  lock_init (&frame_fs_lock);
 }
 
 void *vm_frame_alloc (enum palloc_flags flags, void *thread_vaddr)
@@ -168,10 +170,10 @@ bool page_out_evicted_frame (struct frame_entry *f)
     {// MMF -> write back to file if dirty
       if(pagedir_is_dirty (f->owner->pagedir, pt_entry->vaddr))
       {
-        lock_fs ();
+        lock_acquire (&frame_fs_lock);
         file_write_at (pt_entry->file_info->file, pt_entry->vaddr, 
           pt_entry->file_info->read_bytes, pt_entry->file_info->offset);
-        unlock_fs ();
+        lock_release (&frame_fs_lock);
       }
       SET_TYPE(pt_entry->status, MMF);
       SET_PRESENCE (pt_entry->status, UNLOADED);
