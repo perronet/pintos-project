@@ -248,24 +248,35 @@ inode_close (struct inode *inode)
 void
 inode_load_disk (struct inode *inode)
 {
-  if (inode->data == NULL) //Don't re-load
+  lock_acquire (&inode->inode_lock);
+  ASSERT (inode->access_count != 0 || inode->data == NULL);
+  if (inode->access_count == 0) //Don't re-load
     {
+      ASSERT (inode->data == NULL);
       inode->data = malloc (sizeof (struct inode_disk));
       if (inode->data == NULL) 
         PANIC ("No memory left");
       bc_block_read (inode->sector, inode->data, 0, BLOCK_SECTOR_SIZE);
     }
+
+  inode->access_count ++;
+  lock_release (&inode->inode_lock);
 }
 
 void 
 inode_release_disk (struct inode *inode)
 {
-  if (inode->data != NULL) // Don't re-flush
+  lock_acquire (&inode->inode_lock);
+  ASSERT (inode->access_count > 0);
+  ASSERT (inode->access_count != 0 || inode->data == NULL);
+  inode->access_count --; 
+  if (inode->access_count == 0)
     {
       bc_block_write (inode->sector, inode->data, 0, BLOCK_SECTOR_SIZE);
       free(inode->data);
       inode->data = NULL;
     }
+  lock_release (&inode->inode_lock);
 }
 
 /* Marks INODE to be deleted when it is closed by the last caller who
@@ -283,8 +294,6 @@ inode_remove (struct inode *inode) //TODO maybe also remove all inodes pointed b
 off_t
 inode_read_at (struct inode *inode, void *buffer_, off_t size, off_t offset) 
 {
-  lock_acquire (&inode->inode_lock);
-
   inode_load_disk (inode);
 
   uint8_t *buffer = (uint8_t *)buffer_;
@@ -318,8 +327,6 @@ inode_read_at (struct inode *inode, void *buffer_, off_t size, off_t offset)
     }
 
   inode_release_disk (inode);
-  lock_release (&inode->inode_lock);
-
   return bytes_read;
 }
 
@@ -330,7 +337,6 @@ off_t
 inode_write_at (struct inode *inode, const void *buffer_, off_t size,
                 off_t offset) 
 {
-  lock_acquire (&inode->inode_lock);
   inode_load_disk (inode);
 
   uint8_t *buffer = (uint8_t *)buffer_;
@@ -369,8 +375,6 @@ inode_write_at (struct inode *inode, const void *buffer_, off_t size,
     }
 
   inode_release_disk (inode);
-
-  lock_release (&inode->inode_lock);
   return bytes_written;
 }
 

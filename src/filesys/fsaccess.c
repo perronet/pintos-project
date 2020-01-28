@@ -242,7 +242,7 @@ write_open_file (int fd_num, void *buffer, unsigned length)
       lock_fs (); 
       struct file_descriptor *fd = get_file_descriptor (fd_num);
       unlock_fs ();
-      
+
       if (fd != NULL && !fd->is_dir)
         result = file_write (fd->open_file, buffer, length);
       else
@@ -257,7 +257,7 @@ write_open_file (int fd_num, void *buffer, unsigned length)
 void
 seek_open_file (int fd_num, unsigned position)
 {
-  lock_fs ();
+  lock_fs (); 
   struct file_descriptor *fd = get_file_descriptor (fd_num);
   if (fd != NULL)
     file_seek (fd->open_file, position);
