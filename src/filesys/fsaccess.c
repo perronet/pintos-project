@@ -199,7 +199,7 @@ read_open_file (int fd_num, void *buffer, unsigned length)
         start++;
         result++;
       }
-      lock_release(&files_lock); 
+      unlock_fs (); 
 
       *start = 0;
     }
@@ -214,7 +214,7 @@ read_open_file (int fd_num, void *buffer, unsigned length)
       else
         result = -1;
 
-      lock_release(&files_lock);
+      unlock_fs (); 
     }
 
   return result;
@@ -235,7 +235,7 @@ write_open_file (int fd_num, void *buffer, unsigned length)
     {
       lock_fs (); 
       putbuf (buffer, length); //#TODO check for too long buffers, break them down.
-      lock_release(&files_lock); 
+      unlock_fs (); 
     }
   else //it is an actual file descriptor
     {
@@ -245,7 +245,7 @@ write_open_file (int fd_num, void *buffer, unsigned length)
         result = file_write (fd->open_file, buffer, length);
       else
         result = -1;
-      lock_release(&files_lock); 
+      unlock_fs (); 
     }
 
   return result;
