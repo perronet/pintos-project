@@ -9,6 +9,7 @@
 #include "filesys/cache.h"
 #include "threads/malloc.h"
 
+struct lock inodes_lock;
 
 //allocate block sector or normal sector
 #define CHECK_ALLOCATE_AND_GET_SECTOR(table, idx, is_index_block)\
@@ -74,6 +75,7 @@ void
 inode_init (void) 
 {
   list_init (&open_inodes);
+  lock_init (&inodes_lock);
 }
 
 /* Initializes an inode with LENGTH bytes of data and
@@ -180,7 +182,9 @@ inode_open (block_sector_t sector)
   inode->cwd_cnt = 0;
   inode->deny_write_cnt = 0;
   inode->removed = false;
+  lock_init (&inode->inode_lock);
   inode->data = NULL; //Lazy loaded
+  inode->access_count = 0;
   return inode;
 }
 
@@ -279,6 +283,8 @@ inode_remove (struct inode *inode) //TODO maybe also remove all inodes pointed b
 off_t
 inode_read_at (struct inode *inode, void *buffer_, off_t size, off_t offset) 
 {
+  lock_acquire (&inode->inode_lock);
+
   inode_load_disk (inode);
 
   uint8_t *buffer = (uint8_t *)buffer_;
@@ -312,6 +318,7 @@ inode_read_at (struct inode *inode, void *buffer_, off_t size, off_t offset)
     }
 
   inode_release_disk (inode);
+  lock_release (&inode->inode_lock);
 
   return bytes_read;
 }
@@ -323,15 +330,13 @@ off_t
 inode_write_at (struct inode *inode, const void *buffer_, off_t size,
                 off_t offset) 
 {
+  lock_acquire (&inode->inode_lock);
   inode_load_disk (inode);
 
   uint8_t *buffer = (uint8_t *)buffer_;
   off_t bytes_written = 0;
 
-  if (inode->deny_write_cnt)
-    return 0;
-
-  while (size > 0) 
+  while (size > 0 && inode->deny_write_cnt == 0) 
     {
       /* Sector to write, starting byte offset within sector. */
       block_sector_t sector_idx = byte_to_sector (inode, offset);
@@ -365,6 +370,7 @@ inode_write_at (struct inode *inode, const void *buffer_, off_t size,
 
   inode_release_disk (inode);
 
+  lock_release (&inode->inode_lock);
   return bytes_written;
 }
 

@@ -209,12 +209,12 @@ read_open_file (int fd_num, void *buffer, unsigned length)
     {
       lock_fs (); 
       struct file_descriptor *fd = get_file_descriptor (fd_num);
+      unlock_fs (); 
+
       if (fd != NULL && !fd->is_dir)
         result = file_read (fd->open_file, buffer, length);
       else
         result = -1;
-
-      unlock_fs (); 
     }
 
   return result;
@@ -241,11 +241,12 @@ write_open_file (int fd_num, void *buffer, unsigned length)
     {
       lock_fs (); 
       struct file_descriptor *fd = get_file_descriptor (fd_num);
+      unlock_fs ();
+      
       if (fd != NULL && !fd->is_dir)
         result = file_write (fd->open_file, buffer, length);
       else
         result = -1;
-      unlock_fs (); 
     }
 
   return result;

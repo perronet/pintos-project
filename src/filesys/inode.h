@@ -4,6 +4,7 @@
 #include <stdbool.h>
 #include "filesys/off_t.h"
 #include "devices/block.h"
+#include "threads/synch.h"
 #include "lib/kernel/list.h"
 
 struct bitmap;
@@ -60,6 +61,8 @@ struct inode
     bool removed;                       /* True if deleted, false otherwise. */
     int deny_write_cnt;                 /* 0: writes ok, >0: deny writes. */
     struct inode_disk* data;            /* Inode content. */
+    struct lock inode_lock;             /* Used to synchronize file growth */
+    int access_count;                   /* Number of threads currently using this inode */
   };
 
 void inode_init (void);
