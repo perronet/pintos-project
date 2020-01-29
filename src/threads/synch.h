@@ -4,6 +4,17 @@
 #include <list.h>
 #include <stdbool.h>
 
+//#define DEBUG_LOCK
+
+#ifdef DEBUG_LOCK
+#define DEBUG_LOCK_ID(lock,n) \
+  { (lock)->id = n; } 
+#else
+#define DEBUG_LOCK_ID(x,xx)
+#endif
+
+
+
 /* A counting semaphore. */
 struct semaphore 
   {
@@ -22,6 +33,9 @@ struct lock
   {
     struct thread *holder;      /* Thread holding lock (for debugging). */
     struct semaphore semaphore; /* Binary semaphore controlling access. */
+#ifdef DEBUG_LOCK
+    int id;
+#endif
   };
 
 void lock_init (struct lock *);

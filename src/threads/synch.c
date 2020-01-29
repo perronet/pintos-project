@@ -179,6 +179,10 @@ lock_init (struct lock *lock)
 
   lock->holder = NULL;
   sema_init (&lock->semaphore, 1);
+
+  #ifdef DEBUG_LOCK
+    lock->id = 0;
+  #endif
 }
 
 /* Acquires LOCK, sleeping until it becomes available if
@@ -192,6 +196,11 @@ lock_init (struct lock *lock)
 void
 lock_acquire (struct lock *lock)
 {
+  #ifdef DEBUG_LOCK
+    if(lock == NULL || intr_context () || lock_held_by_current_thread (lock))
+      printf("lock %d fails \n", lock->id);
+  #endif
+
   ASSERT (lock != NULL);
   ASSERT (!intr_context ());
   ASSERT (!lock_held_by_current_thread (lock));
@@ -228,6 +237,11 @@ lock_try_acquire (struct lock *lock)
 void
 lock_release (struct lock *lock) 
 {
+  #ifdef DEBUG_LOCK
+    if(lock == NULL || !lock_held_by_current_thread (lock))
+      printf("lock %d fails \n", lock->id);
+  #endif
+
   ASSERT (lock != NULL);
   ASSERT (lock_held_by_current_thread (lock));
 
