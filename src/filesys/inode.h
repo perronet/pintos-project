@@ -61,8 +61,10 @@ struct inode
     bool removed;                       /* True if deleted, false otherwise. */
     int deny_write_cnt;                 /* 0: writes ok, >0: deny writes. */
     struct inode_disk* data;            /* Inode content. */
-    struct lock inode_lock;             /* Used to synchronize file growth */
+    struct lock inode_lock;             /* Used to synchronize file loading */
+    struct lock inode_growth;           /* Used to synchronize file growth */
     int access_count;                   /* Number of threads currently using this inode */
+    off_t logical_length;               /* Physical size minus what still needs to be initialized */
   };
 
 void inode_init (void);

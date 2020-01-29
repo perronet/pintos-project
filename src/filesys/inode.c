@@ -9,8 +9,6 @@
 #include "filesys/cache.h"
 #include "threads/malloc.h"
 
-struct lock inodes_lock;
-
 //allocate block sector or normal sector
 #define CHECK_ALLOCATE_AND_GET_SECTOR(table, idx, is_index_block)\
 ({\
@@ -75,7 +73,6 @@ void
 inode_init (void) 
 {
   list_init (&open_inodes);
-  lock_init (&inodes_lock);
 }
 
 /* Initializes an inode with LENGTH bytes of data and
@@ -183,9 +180,11 @@ inode_open (block_sector_t sector)
   inode->deny_write_cnt = 0;
   inode->removed = false;
   lock_init (&inode->inode_lock);
+  lock_init (&inode->inode_growth);
   DEBUG_LOCK_ID (&inode->inode_lock, 15043);
   inode->data = NULL; //Lazy loaded
   inode->access_count = 0;
+  inode->logical_length = -1;
   return inode;
 }
 
@@ -258,6 +257,9 @@ inode_load_disk (struct inode *inode)
       if (inode->data == NULL) 
         PANIC ("No memory left");
       bc_block_read (inode->sector, inode->data, 0, BLOCK_SECTOR_SIZE);
+
+      if(inode->logical_length == -1)
+        inode->logical_length = inode->data->length;
     }
 
   inode->access_count ++;
@@ -309,7 +311,7 @@ inode_read_at (struct inode *inode, void *buffer_, off_t size, off_t offset)
 
       /* Bytes left in inode, bytes left in sector, lesser of the two. */
       int sector_ofs = offset % BLOCK_SECTOR_SIZE;
-      off_t inode_left = inode->data->length - offset;
+      off_t inode_left = inode->logical_length - offset;
       int sector_left = BLOCK_SECTOR_SIZE - sector_ofs;
       int min_left = inode_left < sector_left ? inode_left : sector_left;
 
@@ -343,16 +345,25 @@ inode_write_at (struct inode *inode, const void *buffer_, off_t size,
   uint8_t *buffer = (uint8_t *)buffer_;
   off_t bytes_written = 0;
 
+  bool is_growing;
   while (size > 0 && inode->deny_write_cnt == 0) 
     {
+      is_growing = false;
+
       /* Sector to write, starting byte offset within sector. */
       block_sector_t sector_idx = byte_to_sector (inode, offset);
       int sector_ofs = offset % BLOCK_SECTOR_SIZE;
 
       if (sector_idx == SECTOR_ERROR) // Read past end of inode
         {
-          if (!inode_grow (inode, size, offset))
+          lock_acquire (&inode->inode_lock);
+          is_growing = inode_grow (inode, size, offset);
+
+          if (!is_growing)
+          {
+            lock_release (&inode->inode_lock);
             break;
+          }
           sector_idx = byte_to_sector (inode, offset);
         }
 
@@ -364,16 +375,32 @@ inode_write_at (struct inode *inode, const void *buffer_, off_t size,
       /* Number of bytes to actually write into this sector. */
       int chunk_size = size < min_left ? size : min_left;
       if (chunk_size <= 0)
+      {
+        if (is_growing)
+        {
+          inode->logical_length = inode->data->length;
+          lock_release (&inode->inode_lock);
+        }
         break;
+      }
 
       bc_block_write (sector_idx, buffer + bytes_written,
                       sector_ofs, chunk_size);
+
+      if (is_growing)
+      {
+        inode->logical_length = inode->data->length;
+        lock_release (&inode->inode_lock);
+      }
 
       /* Advance. */
       size -= chunk_size;
       offset += chunk_size;
       bytes_written += chunk_size;
     }
+
+  ASSERT (!lock_held_by_current_thread (&inode->inode_lock));
+  ASSERT (!lock_held_by_current_thread (&inode->inode_growth)); 
 
   inode_release_disk (inode);
   return bytes_written;
