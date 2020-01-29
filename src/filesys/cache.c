@@ -171,15 +171,26 @@ void bc_block_write (block_sector_t sector, void *buffer, off_t offset, off_t si
   ASSERT (offset + size <= BLOCK_SECTOR_SIZE);
 
   struct buffer_cache_entry *cache_entry = NULL;
-  bool is_cache_miss = bc_get_and_lock_entry (&cache_entry, sector); //acquires elock
+  bool is_allowed;
+  bool is_cache_miss;
 
-  if(is_cache_miss)
+  while (!is_allowed)
   {
-    if (offset > 0 || 
-        size + offset < BLOCK_SECTOR_SIZE) 
-        block_read (fs_device, sector, cache_entry->data);
-      else
-        memset (cache_entry->data, 0, BLOCK_SECTOR_SIZE);
+    is_cache_miss = bc_get_and_lock_entry (&cache_entry, sector); //acquires elock
+
+    if(is_cache_miss)
+    {
+      if (offset > 0 || 
+          size + offset < BLOCK_SECTOR_SIZE) 
+          block_read (fs_device, sector, cache_entry->data);
+        else
+          memset (cache_entry->data, 0, BLOCK_SECTOR_SIZE);
+    }
+
+    is_allowed = cache_entry->readers == 0;
+
+    if (!is_allowed)
+      lock_release(&cache_entry->elock);
   }
 
   cache_entry->is_in_second_chance = false;
