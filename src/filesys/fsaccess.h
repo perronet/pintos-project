@@ -4,8 +4,11 @@
 #include "filesys/file.h"
 #include "lib/string.h"
 
+#define FS_DEBUG
+
 /* Synchronizes accesses to file system */
 struct lock files_lock;
+
 
 unsigned int fd_count;
 
@@ -20,6 +23,15 @@ struct file_descriptor
 
   struct list_elem elem; 
 };
+
+
+#ifdef FS_DEBUG
+#define FS_IN lock_fs();
+#define FS_OUT unlock_fs();
+#else
+#define FS_IN 
+#define FS_OUT
+#endif
 
 void fsaccess_init (void);
 
