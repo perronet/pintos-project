@@ -4,7 +4,7 @@
 #include "filesys/file.h"
 #include "lib/string.h"
 
-#define FS_DEBUG
+#define FS_DEBUG //TODO comment to enable fine-grained synch on W/R
 
 /* Synchronizes accesses to file system */
 struct lock files_lock;
