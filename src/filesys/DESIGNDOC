@@ -93,7 +93,11 @@ memory_blocks = total_blocks - metadata_blocks = 16384 (8MB)
 >> A3: Explain how your code avoids a race if two processes attempt to
 >> extend a file at the same time.
 
-TODO
+Each inode uses a lock to synchronize the loading from disk of the disk_inode,
+and another to handle file growth, that can be consequently done by only one thread 
+at time.
+A process only acquires the growth lock if it wants to extend the file; any read or 
+write that does not exceed the file length can therefore happen in parallel. 
 
 >> A4: Suppose processes A and B both have file F open, both
 >> positioned at end-of-file.  If A reads and B writes F at the same
@@ -102,7 +106,17 @@ TODO
 >> nonzero data, A is not allowed to see all zeros.  Explain how your
 >> code avoids this race.
 
-TODO
+To handle this, we introduced a new concept in the inode structure called
+logical length. When a file is extended, its physical length will grow, but
+the logical length will stay the same until the file is written for the first
+time by the process. Any read call will use the logical length as length of the
+file, so it will not be aware of the extended part. This part requires synchronization
+on one hand, and careful updates of the two length variables. The former challenge is 
+solved with a lock used to synchronize the growth action (lock is per-inode). 
+The logical length system is delicate, because it intertwines with the inode load and
+flush mechanism. The logical length is initialized when the inode is loaded, is always 
+stored in memory, and is guaranteed to be unified with the physical one before the inode 
+is closed.
 
 >> A5: Explain how your synchronization design provides "fairness".
 >> File access is "fair" if readers cannot indefinitely block writers
@@ -111,7 +125,18 @@ TODO
 >> processes writing to a file cannot prevent another process forever
 >> from reading the file.
 
-TODO
+Readers can read in parallel, and also the writers
+can. During races between writers and readers, accesses to the same block are 
+handled by the buffer cache: all processes wait on the same queue, and then 
+decide whether they are currently allowed to perform the operation they want 
+(R/W). Starvation in theory is still possible, but limited to a low probability.
+If two processes try to extend the same file, then one of them will win, and 
+the other will have to wait until the winner finishes one block. After this, the
+second process will be able to overwrite the newly created block, and at the same
+time the first could be extending the file even more. When the number of processes
+that are trying to extend grows, there will still be one winner, and problem for the
+others will be reduced to the case of the many-writers race (as long as the extension
+of one block finishes).
 
 ---- RATIONALE ----
 
@@ -190,11 +215,15 @@ struct inode
     struct list_elem elem;              /* Element in inode list. */
     block_sector_t sector;              /* Sector number of disk location. */
     int open_cnt;                       /* Number of openers. */
-    int open_fd_cnt;					          /* Number of open fds on this dir. */
+    int open_fd_cnt;                    /* Number of open fds on this dir. */
     int cwd_cnt;                        /* Number of processes that have this dir as cwd. */
     bool removed;                       /* True if deleted, false otherwise. */
     int deny_write_cnt;                 /* 0: writes ok, >0: deny writes. */
     struct inode_disk* data;            /* Inode content. */
+    struct lock inode_lock;             /* Used to synchronize file loading */
+    struct lock inode_growth;           /* Used to synchronize file growth */
+    int access_count;                   /* Number of threads currently using this inode */
+    off_t logical_length;               /* Physical size minus what still needs to be initialized */
   };
 
 /* Represents an open file. */
@@ -264,9 +293,9 @@ struct dir*, which is used to represent open directories.
 >> `struct' member, global or static variable, `typedef', or
 >> enumeration.  Identify the purpose of each in 25 words or less.
 
-#define MAX_CACHE_SECTORS 64
-#define BC_DAEMON_FLUSH_SLEEP_MS 1000
-#define MAX_READ_AHEAD 10
+#define MAX_CACHE_SECTORS 64 //dimension of the cache
+#define BC_DAEMON_FLUSH_SLEEP_MS 1000 //Interval between activations of the automatic flush
+#define MAX_READ_AHEAD 10 //maximum number of entries that can request a read-ahead at the same time.
 
 struct buffer_cache_entry
 {
@@ -285,26 +314,39 @@ struct buffer_cache_entry
 
 To evict a block, we use a slightly modified version of the clock algorithm,
 in which we always start from the top of the list, and we cycle looking 
-for an entry in a second chance fashion. Since we always start from the beginning,
-but newly added entries and recently referenced ones are moved to the end, 
-we have an implicit mechanism of aging going on. On top of this, during the first iteration,
-the dirty entries will be ignored. This is done because evicting a dirty
-entry is more expensive.
+for an entry in a second chance fashion. To reduce cache misses, we organize
+the eviction in rounds and gradually consider a larger classes of candidates.
+Each cache entry can have three properties:
+- Is currently dirty
+- Is currently locked
+- Is currently being read (readers count > 0)
+During the first iteration, we look for a free entry (may be skipped if free count == 0). 
+In the second, we put in second chance every non-dirty entry. If we find an entry in 
+second-chance, we try to acquire it. From the third iteration onwards, we put anything 
+in second change. Entries that are currently locked or have readers are simply ignored.
+Intuitively, this makes sense, because it suggests that these entries are popular and 
+should not be evicted. On the other hand, this may cause starvation (although it is 
+very unlikely). As a safety measure, we allow the algorithm to actually wait on the lock 
+of a cell after a certain number of failed iterations. In practice, this limit was never met.
 
 >> C3: Describe your implementation of write-behind.
 
 Entries are not flushed upon write, but rather upon eviction, or periodically 
 by the flush daemon. We use a dirty bit in order to decide whether an entry 
-should be flushed or not. 
+should be flushed or not. We implemented a daemon (running on another thread) that sleeps
+for a fixed amount of time, then wakes up and looks for entries to flush.
 
 >> C4: Describe your implementation of read-ahead.
 
-We use a queue of read-ahead requests, bounded with a maximum of 10 requests.
-The read ahead daemon will periodically check for requests, but without busy-waiting.
-Instead, a semaphore is used: the daemon blocks on the semaphore, and every time a 
-new request is issued, the semaphore is unlocked. The requests are issued from
-inode_read_at (...). After reading one block, if the next one is in the inode and
-needs to be read, then an asynchronous request for a read-ahead is issued.
+We use an array of read-ahead requests, bounded with fixed number of maximum requests.
+Unlike the write-behind daemon, the read ahead thread will check for requests only when
+asked to. After a block is read, the daemon is triggered by signaling on a specific semaphore.
+We used a semaphore and not a condition because, since the daemon is asynchronous, we could 
+have another request while it is running. We therefore want the daemon to check again after one
+loop is completed. In the worst case, this leads to some lost computation power, but considered
+the length of the maximum requests (currently ten), this is negligible. On the other hand, this
+mechanism allows the read-ahead mechanism to be completely independent, and act (from the point
+of view of the buffer cache) like a normal process. 
 
 ---- SYNCHRONIZATION ----
 
@@ -312,27 +354,38 @@ needs to be read, then an asynchronous request for a read-ahead is issued.
 >> buffer cache block, how are other processes prevented from evicting
 >> that block?
 
-We use a lock (cache_lock) for both reading and writing a cache block.
+Each entry in the cache has its own lock. Readers only get the lock 
+to signal their presence (they increase a counter) and to signal
+their leave (decrease the counter). Writers hold the lock for the
+entire operation. In order to evict a frame, a process must be able
+to:
+1 - get the lock of the entry
+2 - make sure that there are no active readers (using the counter)
+It is therefore impossible that an entry is evicted while being used.
+This causes some problems on the eviction side, addressed in [C2]
 
 >> C6: During the eviction of a block from the cache, how are other
 >> processes prevented from attempting to access the block?
 
-The same lock protects also the eviction code because it is executed
-upon cache miss when reading and writing.
+As explained in [C5], both readers and writers acquire the entry lock
+before proceeding. Since the eviction takes place with lock acquired,
+readers and writers will halt.
 
 ---- RATIONALE ----
 
 >> C7: Describe a file workload likely to benefit from buffer caching,
 >> and workloads likely to benefit from read-ahead and write-behind.
 
-Buffer caching can benefit, for example, a text editor workflow: after
-loading a file, the same blocks will be accessed upon saving.
+Buffer caching is useful when few blocks are read and written over and
+over, like in case of a very small resource with extreme contention.
 
 Read-ahead can be very useful when copying large files 
 because every read, except the first and last one, will be anticipated.
 
 Write-behind benefits programs that write to the same blocks many times
-in a short timespan.
+in a short timespan. The periodic automatic flush of the entries 
+is actually a safety/consistency feature, because we could just leave the
+eviction system do the job (or flush everything at shutdown).
 
 			   SURVEY QUESTIONS
 			   ================
