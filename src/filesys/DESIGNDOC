@@ -106,7 +106,7 @@ write that does not exceed the file length can therefore happen in parallel.
 >> nonzero data, A is not allowed to see all zeros.  Explain how your
 >> code avoids this race.
 
-To handle this, we introduced a new concept in the inode structure called
+To handle this, we introduced a new field in the inode structure called
 logical length. When a file is extended, its physical length will grow, but
 the logical length will stay the same until the file is written for the first
 time by the process. Any read call will use the logical length as length of the
@@ -125,7 +125,7 @@ is closed.
 >> processes writing to a file cannot prevent another process forever
 >> from reading the file.
 
-Readers can read in parallel, and also the writers
+Readers can work in parallel, and also the writers
 can. During races between writers and readers, accesses to the same block are 
 handled by the buffer cache: all processes wait on the same queue, and then 
 decide whether they are currently allowed to perform the operation they want 
@@ -134,7 +134,7 @@ If two processes try to extend the same file, then one of them will win, and
 the other will have to wait until the winner finishes one block. After this, the
 second process will be able to overwrite the newly created block, and at the same
 time the first could be extending the file even more. When the number of processes
-that are trying to extend grows, there will still be one winner, and problem for the
+that are trying to extend grows, there will still be one winner, and the problem for the
 others will be reduced to the case of the many-writers race (as long as the extension
 of one block finishes).
 
@@ -260,7 +260,7 @@ is performed.
 >> should succeed, as should only one of two simultaneous attempts to
 >> create a file with the same name, and so on.
 
-TODO don't use big kernel lock on fs
+TODO
 
 >> B5: Does your implementation allow a directory to be removed if it
 >> is open by a process or if it is in use as a process's current
