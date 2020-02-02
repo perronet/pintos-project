@@ -297,6 +297,9 @@ inode_remove (struct inode *inode) //TODO maybe also remove all inodes pointed b
 off_t
 inode_read_at (struct inode *inode, void *buffer_, off_t size, off_t offset) 
 {
+  if (inode->logical_length == 0)
+    return 0;
+
   inode_load_disk (inode);
 
   uint8_t *buffer = (uint8_t *)buffer_;
