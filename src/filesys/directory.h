@@ -19,6 +19,7 @@
 struct dir 
   {
     struct inode *inode;                /* Backing store. */
+    struct lock dir_lock;               /* Used to synch dir modifications */
     off_t pos;                          /* Current position. */
   };
 

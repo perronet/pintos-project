@@ -40,9 +40,7 @@ create_directory(const char *dirpath)
   bool result = false;
   if (is_valid_address_of_thread (thread_current (), dirpath, false, 0) && strlen (dirpath))
     {
-      lock_fs ();
       result = filesys_create (dirpath, -1);
-      unlock_fs ();
     }
   
   return result;
@@ -82,7 +80,6 @@ remove_file_or_dir(const char *path)
   bool result = false;
   if (is_valid_address_of_thread (thread_current (), path, false, 0))
     {    
-      lock_fs ();
       if (path_is_dir (path))
       { 
       /* Remove directory only if it's empty and it's not open
@@ -96,7 +93,6 @@ remove_file_or_dir(const char *path)
       {
         result = filesys_remove (path);
       }
-      unlock_fs ();
     }
 
   return result;

@@ -26,6 +26,7 @@ dir_open (struct inode *inode)
   if (inode != NULL && dir != NULL)
     {
       dir->inode = inode;
+      lock_init (&dir->dir_lock);
       dir->pos = 0;
       return dir;
     }
@@ -181,6 +182,7 @@ dir_path_lookup (const char *path_str)
 bool
 dir_add (struct dir *dir, const char *name, block_sector_t inode_sector, bool is_dir)
 {
+  lock_acquire (&dir->dir_lock);
   struct dir_entry e;
   off_t ofs;
   bool success = false;
@@ -217,6 +219,7 @@ dir_add (struct dir *dir, const char *name, block_sector_t inode_sector, bool is
   success = inode_write_at (dir->inode, &e, sizeof e, ofs) == sizeof e;
 
  done:
+  lock_release (&dir->dir_lock);
   return success;
 }
 
@@ -227,6 +230,7 @@ dir_add (struct dir *dir, const char *name, block_sector_t inode_sector, bool is
 bool
 dir_remove (struct dir *dir, const char *name) 
 {
+  lock_acquire (&dir->dir_lock);
   struct dir_entry e;
   struct inode *inode = NULL;
   struct dir *dir_to_remove = NULL;
@@ -265,6 +269,7 @@ dir_remove (struct dir *dir, const char *name)
  done:
   dir_close (dir_to_remove);
   inode_close (inode);
+  lock_release (&dir->dir_lock);
   return success;
 }
 
