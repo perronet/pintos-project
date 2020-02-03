@@ -226,17 +226,24 @@ struct inode
     off_t logical_length;               /* Physical size minus what still needs to be initialized */
   };
 
+struct dir 
+  {
+    struct inode *inode;                /* Backing store. */
+    struct lock dir_lock;               /* Used to synch dir modifications */
+    off_t pos;                          /* Current position. */
+  };
+
 /* Represents an open file. */
 struct file_descriptor 
-{
-  int fd_num;
-  struct file *open_file;
-  struct dir *open_dir;
-  tid_t owner;
-  bool is_dir;
+  {
+    int fd_num;
+    struct file *open_file;
+    struct dir *open_dir;
+    tid_t owner;
+    bool is_dir;
 
-  struct list_elem elem; 
-};
+    struct list_elem elem; 
+  };
 
 ---- ALGORITHMS ----
 
@@ -260,7 +267,8 @@ is performed.
 >> should succeed, as should only one of two simultaneous attempts to
 >> create a file with the same name, and so on.
 
-TODO
+Operations on the same directory are guarded by a (per-directory) lock.
+Hence, one operation will go first, and the other will not succeed.
 
 >> B5: Does your implementation allow a directory to be removed if it
 >> is open by a process or if it is in use as a process's current
